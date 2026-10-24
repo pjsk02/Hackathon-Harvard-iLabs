@@ -17,7 +17,7 @@ export const COPY = {
     chain: { name: "Monad", role: "permissions on record" },
     client: { name: CLIENT, role: "client" },
   },
-  chainSubtitle: "Neither company can edit this.",
+  chainSubtitle: "Permission links · application request history",
   empty: {
     firm: `${AGENT}, ${FIRM}'s AI agent, is ready.`,
     chain: "No permissions yet.",
@@ -35,7 +35,7 @@ export const COPY = {
   replies: {
     ALLOWED: "✓ Here's regional branch profitability.",
     BLOCKED: "✕ Blocked. Not permitted.",
-    REJECTED: "✕ Rejected. Permission #2 was added after the request.",
+    REJECTED: "✕ Permission review rejected. See the failed checks.",
   } as Record<Decision, string>,
   footers: { ALLOWED: "Sent to Atlas.", BLOCKED: "Nothing sent.", REJECTED: "Doesn't count." } as Record<Decision, string>,
   dispute: "We had permission on Monday.",
@@ -45,7 +45,7 @@ export const COPY = {
   addedAfter: "Added after the request",
   previewLabel: "HIDDEN TEXT · included in extracted text",
   send: "Send",
-  upload: { title: "Attach a report", sample: "Sample report with hidden text ↓" },
+  upload: { title: "Upload a report", sample: "Download sample Word report ↓" },
   forced: "forced",
 };
 

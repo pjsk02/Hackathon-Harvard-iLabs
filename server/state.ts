@@ -2,6 +2,7 @@
 // Every restart or redeploy wipes this.
 import type { Receipt, Slip } from "../shared/contract";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { randomUUID } from "node:crypto";
 import { httpError } from "./http";
 
 const slips = new Map<string, Slip>();
@@ -9,7 +10,12 @@ let receipts: Receipt[] = []; // stored oldest first
 let counter = 0; // requests checked since last reset
 let nextId = 1;
 let resetGeneration = 0;
+// Unlike a numeric generation, this also changes after a process restart.
+// Exposed as HTTP metadata, not an authorization credential.
+let sessionId = randomUUID();
 const requestGeneration = new AsyncLocalStorage<number>();
+
+export const getSessionId = () => sessionId;
 
 /** Capture once at the start of an operation; retry caches must include this value. */
 export function getResetGeneration(): number {
@@ -87,6 +93,7 @@ export function reset(): void {
   // Increment before clearing. Work already in flight may complete on Monad, but
   // it must never repopulate the next demo session's in-memory state.
   resetGeneration++;
+  sessionId = randomUUID();
   slips.clear();
   receipts = [];
   counter = 0;

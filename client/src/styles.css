@@ -65,10 +65,16 @@ p { margin: 0 0 8px; }
 .good { color: var(--good); }
 .bad { color: var(--bad); }
 
+.demo-guide { padding: 8px 20px; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--muted); background: var(--card); }
+.demo-guide p { margin: 0; }
+.demo-guide strong { color: var(--ink); font-weight: 600; }
+.classic-upload { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 13px; }
+.report-file-name { overflow-wrap: anywhere; font-size: 13px; color: var(--muted); }
+
 .app {
   height: 100vh;
   display: grid;
-  grid-template-rows: 72px 1fr auto auto;
+  grid-template-rows: 72px auto minmax(0, 1fr) auto auto;
   gap: 16px;
   padding: 0 24px 16px;
   overflow: hidden;
@@ -117,8 +123,8 @@ h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: 
 .doc { --doc-bg: var(--card); background: var(--doc-bg); font-size: 15px; line-height: 1.6; }
 .doc p { color: var(--muted); }
 .doc p:first-child { color: var(--ink); font-size: 18px; letter-spacing: -0.01em; }
-.hidden-note { color: var(--doc-bg); }
-.hidden-note::selection { color: var(--doc-bg); background: transparent; }
+.doc .hidden-note:not(.revealed) { color: transparent; text-shadow: none; }
+.doc .hidden-note:not(.revealed)::selection { color: transparent; background: transparent; }
 .hidden-note.revealed {
   color: var(--ink); background: var(--bad-wash); border: 1px solid var(--bad);
   border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 8px;
@@ -177,3 +183,15 @@ kbd {
 .preflight table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
 .preflight th, .preflight td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
 .preflight th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dim); }
+
+@media (max-width: 760px) {
+  .app { height: auto; min-height: 100dvh; overflow: visible; display: flex; flex-direction: column; padding: 14px; }
+  .header { flex-wrap: wrap; gap: 12px; padding-bottom: 12px; }
+  .brand { flex-wrap: wrap; }
+  .steps { display: grid; grid-template-columns: 1fr 1fr; width: 100%; border-radius: 16px; }
+  .steps li { white-space: normal; }
+  .columns { display: flex; flex-direction: column; }
+  .col { overflow: visible; }
+  .controls button { min-height: 44px; }
+  .demo-guide { padding: 10px 14px; }
+}

@@ -60,7 +60,7 @@ export default function BainePane({ feed, preview, attachment, previewParts, can
           }}
         />
         <button className="attach" onClick={() => picker.current?.click()} disabled={!canUpload} title={COPY.upload.title} aria-label={COPY.upload.title}>
-          <AttachmentIcon />
+          <AttachmentIcon /> <span>Upload</span>
         </button>
         <button onClick={onSend} disabled={!canSend} title={!canSend ? sendReason : undefined}>{COPY.send}</button>
       </div>
@@ -97,7 +97,7 @@ function FeedRow({ item }: { item: FeedItem }) {
       return (
         <div className={`bubble bubble-out ${tone}`}>
           <div className="bubble-route">
-            {AGENT.toUpperCase()} → {CLIENT.toUpperCase()}
+            {item.forced ? "FORCED REQUEST" : AGENT.toUpperCase()} → {CLIENT.toUpperCase()}
             {item.forced && <span className="tag">{COPY.forced}</span>}
           </div>
           <p className="bubble-quote">{requestText(item.action)}</p>

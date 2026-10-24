@@ -1,7 +1,7 @@
 import type { Anchor, Check, Receipt } from "@shared/contract";
 import { shownChecks } from "../labels";
 
-/** A receipt has no attempt anchor. Only a slip's complete anchor is evidence. */
+/** Defensive link validation only. This never performs or proves chain readback. */
 export function recordedAnchor(anchor: Anchor | null): Anchor | null {
   if (!anchor || !/^0x[0-9a-f]{64}$/i.test(anchor.txHash)
     || /^0x([0-9a-f])\1{63}$/i.test(anchor.txHash)
@@ -10,7 +10,7 @@ export function recordedAnchor(anchor: Anchor | null): Anchor | null {
   try {
     const url = new URL(anchor.explorerUrl);
     const explorer = /^(testnet\.)?(monadvision\.com|monadexplorer\.com)$/i.test(url.hostname);
-    return url.protocol === "https:" && explorer
+    return url.protocol === "https:" && explorer && !url.username && !url.password && !url.port && !url.search && !url.hash
       && url.pathname.toLowerCase() === `/tx/${anchor.txHash.toLowerCase()}` ? anchor : null;
   } catch {
     return null;

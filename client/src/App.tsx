@@ -24,5 +24,7 @@ export default function App() {
   }, []);
 
   if (new URLSearchParams(window.location.search).get("preflight") === "1") return <Preflight />;
-  return view === "classic" ? <ClassicApp /> : <SplitApp />;
+  return view === "classic"
+    ? <ClassicApp onSwitchView={() => setView("stage")} />
+    : <SplitApp onSwitchView={() => setView("classic")} />;
 }
