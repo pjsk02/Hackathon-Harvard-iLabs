@@ -6,11 +6,14 @@ import { actionLabel } from "@shared/scenarios";
 import { api } from "../api";
 import { COPY } from "../labels";
 import { recordedAnchor } from "../split/evidence";
+import AttemptEvidence from "../AttemptEvidence";
+import { evidenceCounts } from "../attempt-evidence";
 import RequestFeedback, { type ConnectionStatus } from "../RequestFeedback";
 import { demoPresentation, useDemoPresentation } from "../demo-presentation";
 import { ACCEPT, partsFromScenario, readUpload } from "../split/upload";
 import { AllowedTable } from "../split/MorganPane";
 import SharedDemoNotice from "../SharedDemoNotice";
+import { canRecord, healthStatus } from "../health-status";
 
 const short = (h: string) => (h.length > 12 ? `${h.slice(0, 6)}…${h.slice(-4)}` : h);
 const time = (sec: number) => new Date(sec * 1000).toLocaleTimeString();
@@ -63,11 +66,7 @@ export default function ClassicApp({ onSwitchView }: { onSwitchView: () => void 
     const [state, health] = await Promise.allSettled([api.state(), api.health()]);
     if (state.status === "fulfilled") acceptState(state.value, true);
     else setError((state.reason as Error).message);
-    setConnection(health.status === "fulfilled" && health.value.ok && !health.value.mockChain && !!health.value.issuer && state.status === "fulfilled"
-      ? { state: "unverified", message: "Server responded; signing and the Monad connection are not yet verified." }
-      : { state: "unavailable", message: health.status === "fulfilled" && !health.value.issuer
-        ? "Signing is not configured; live requests cannot start yet."
-        : "Live requests are unavailable; check server status before submitting." });
+    setConnection(healthStatus(health.status === "fulfilled" ? health.value : null, { stateReadable: state.status === "fulfilled" }));
     if (health.status === "rejected") setError((previous) => previous ?? (health.reason as Error).message);
     setChecking(false);
     operation.current = false;
@@ -92,6 +91,15 @@ export default function ClassicApp({ onSwitchView }: { onSwitchView: () => void 
       setBusy(null);
       operation.current = false;
     }
+  }
+
+  function recheckAttempt(receipt: Receipt, attemptId: string) {
+    if (operation.current || api.pendingAction()?.phase === "waiting") return;
+    void run("Reading attempt record…", async () => {
+      const updated = await api.reconcile(attemptId, receipt.id);
+      setData((current) => current && { ...current, receipts: current.receipts.map((r) => r.id === updated.id ? updated : r) });
+      setLastRun((current) => current.map((r) => r.id === updated.id ? updated : r));
+    });
   }
 
   const scenario = data?.scenario;
@@ -159,7 +167,7 @@ export default function ClassicApp({ onSwitchView }: { onSwitchView: () => void 
     { key: "5", label: "Force salary request", onClick: actions.force, enabled: !!original, why: "Sign the slip first" },
     { key: "6", label: "Replay the dispute", onClick: actions.dispute, enabled: false, why: "Unavailable until the original-request evidence and live dispute have been verified." },
     { key: "0", label: resetArmed ? "Confirm new run / Reset" : "New run / Reset", onClick: actions.reset, enabled: !presentation.serverBusy, why: "An action is still being processed; check status." },
-  ].map((button) => ["1", "2", "3", "5", "6"].includes(button.key) && (pending || connection.state !== "unverified" || presentation.serverBusy)
+  ].map((button) => ["1", "2", "3", "5", "6"].includes(button.key) && (pending || !canRecord(connection) || presentation.serverBusy)
     ? { ...button, enabled: false, why: "Check server and action status first" } : button);
 
   useEffect(() => {
@@ -249,19 +257,20 @@ export default function ClassicApp({ onSwitchView }: { onSwitchView: () => void 
           <RequestFeedback connection={connection} pending={pending} error={error} onRecheck={() => { void checkStatus(); }} rechecking={checking} busy={!!busy} />
           {busy ? <p className="muted pulse">{busy}</p>
             : ordered.length === 0 ? <p className="muted">The bouncer checks every request against the slip before any data moves.</p>
-            : ordered.slice(0, 2).map((r) => <DecisionCard key={r.id} r={r} />)}
+            : ordered.slice(0, 2).map((r) => <DecisionCard key={r.id} r={r} slips={data!.slips} busy={locked} onRecheck={recheckAttempt} />)}
           {allowed && <AllowedTable receipt={allowed} />}
         </section>
       </main>
 
        <section className="record" id="classic-record" tabIndex={-1}>
         <h2>Public record</h2>
+        <p className="muted">{data!.slips.filter((s) => recordedAnchor(s.anchor)).length} permission records · {evidenceCounts(data!.slips, data!.receipts)} attempt records confirmed on Monad.</p>
         {data!.receipts.length === 0 && data!.slips.length === 0
           ? <p className="muted">No permissions yet.</p>
           : (
             <ul className="mono small events">
-              {data!.slips.map((s) => recordedAnchor(s.anchor) && s.anchor && <li key={s.anchor.txHash}><a href={s.anchor.explorerUrl} target="_blank" rel="noreferrer">● {time(s.anchor.blockTimestamp)} {s.label === "Original" ? "Permission record supplied by server" : "Amended permission record supplied by server"} ↗</a></li>)}
-              {[...data!.receipts].reverse().map((r) => <li key={r.id} className={r.decision === "ALLOWED" ? "good" : "bad"}>● {time(r.actionTime)} {r.decision} · application record, not on Monad</li>)}
+              {data!.slips.map((s) => recordedAnchor(s.anchor) && s.anchor && <li key={s.anchor.txHash}><a href={s.anchor.explorerUrl} target="_blank" rel="noreferrer">● {time(s.anchor.blockTimestamp)} {s.label === "Original" ? "Slip recorded" : "Amended slip recorded"} ↗</a></li>)}
+              {[...data!.receipts].reverse().map((r) => <li key={r.id} className={r.decision === "ALLOWED" ? "good" : "bad"}>● {time(r.actionTime)} {r.decision} · application record · <AttemptEvidence receipt={r} slips={data!.slips} busy={locked} onRecheck={recheckAttempt} /></li>)}
             </ul>
           )}
       </section>
@@ -295,7 +304,9 @@ function SlipCard({ slip }: { slip: Slip }) {
   );
 }
 
-function DecisionCard({ r }: { r: Receipt }) {
+function DecisionCard({ r, slips, busy, onRecheck }: {
+  r: Receipt; slips: Slip[]; busy: boolean; onRecheck: (receipt: Receipt, attemptId: string) => void;
+}) {
   const good = r.decision === "ALLOWED";
   return (
     <div className="card decision">
@@ -309,6 +320,7 @@ function DecisionCard({ r }: { r: Receipt }) {
         ))}
       </ul>
       <div className={`stamp ${good ? "good" : "bad"}`}>{r.decision}</div>
+      <AttemptEvidence receipt={r} slips={slips} busy={busy} onRecheck={onRecheck} />
       <p className="muted">
         {good ? "Sent to Atlas." : r.kind === "dispute" ? "Doesn't count." : "Nothing sent."}
       </p>

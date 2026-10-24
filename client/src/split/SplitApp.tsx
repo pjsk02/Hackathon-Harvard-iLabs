@@ -10,6 +10,7 @@ import RequestFeedback, { type ConnectionStatus } from "../RequestFeedback";
 import { demoPresentation, useDemoPresentation } from "../demo-presentation";
 import { builtin } from "../presentation-store";
 import SharedDemoNotice from "../SharedDemoNotice";
+import { canRecord, healthStatus } from "../health-status";
 import { COPY, answerFrom, shownChecks, weekday } from "../labels";
 import BainePane from "./BainePane";
 import ChainColumn from "./ChainColumn";
@@ -49,7 +50,7 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
   const [connection, setConnection] = useState<ConnectionStatus>({ state: "checking", message: "Reading server status…" });
   const [rechecking, setRechecking] = useState(false);
   const pending = useSyncExternalStore(api.subscribeToPending, api.pendingAction, api.pendingAction);
-  const chainUnavailable = connection.state !== "unverified";
+  const chainUnavailable = !canRecord(connection);
   const controlsBusy = busy || rechecking || pending?.phase === "waiting";
   const canSubmit = !controlsBusy && !pending && !chainUnavailable && !presentation.serverBusy;
   const operation = useRef(false);
@@ -86,6 +87,24 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
     }
   }, [acceptState]);
 
+  async function recheckAttempt(receipt: Receipt, attemptId: string) {
+    if (operation.current || api.pendingAction()?.phase === "waiting") return;
+    operation.current = true;
+    setRechecking(true);
+    setError(null);
+    try {
+      const updated = await api.reconcile(attemptId, receipt.id);
+      setData((current) => current && { ...current, receipts: current.receipts.map((r) => r.id === updated.id ? updated : r) });
+      setStage((current) => current?.receipt?.id === updated.id ? { ...current, receipt: updated } : current);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      await refresh();
+      setRechecking(false);
+      operation.current = false;
+    }
+  }
+
   const checkStatus = useCallback(async () => {
     if (operation.current) return;
     operation.current = true;
@@ -97,18 +116,10 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
       const s = stateResult.value;
       acceptState(s, true);
     } else setError((stateResult.reason as Error).message);
-    if (healthResult.status === "rejected" || stateResult.status === "rejected") {
-      setConnection({ state: "unavailable", message: "Could not read the server and session status; check again before submitting." });
-      if (healthResult.status === "rejected") setError((previous) => previous ?? (healthResult.reason as Error).message);
-    } else if (!healthResult.value.ok || healthResult.value.mockChain) {
-      setConnection({ state: "unavailable", message: healthResult.value.mockChain
-        ? "Practice-chain mode is enabled; live requests are blocked."
-        : "The server reported a failed health check." });
-    } else if (!healthResult.value.issuer) {
-      setConnection({ state: "unavailable", message: "Signing is not configured; live requests cannot start yet." });
-    } else {
-      setConnection({ state: "unverified", message: "Server responded; signing and the Monad connection are not yet verified." });
-    }
+    setConnection(healthStatus(healthResult.status === "fulfilled" ? healthResult.value : null, {
+      stateReadable: stateResult.status === "fulfilled",
+    }));
+    if (healthResult.status === "rejected") setError((previous) => previous ?? (healthResult.reason as Error).message);
     operation.current = false;
     setRechecking(false);
   }, [acceptState]);
@@ -246,7 +257,11 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
     evidence: () => {
       setActiveStep(4);
       setPreview("closed");
-      document.getElementById("monad-evidence")?.focus({ preventScroll: true });
+      const evidence = document.getElementById("monad-evidence");
+      const chain = evidence?.querySelector<HTMLElement>(".chain");
+      if (chain) chain.scrollTop = 0;
+      evidence?.focus({ preventScroll: true });
+      if (window.matchMedia("(max-width: 767px)").matches) evidence?.scrollIntoView({ block: "start", behavior: "auto" });
     },
     force: () => beat(async (alive) => {
       const r = await api.act({ agentId: AGENT_ID, mandateId: MANDATE_ID, action: data!.scenario.forbidden.name });
@@ -371,7 +386,8 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
           onToggleHidden={() => setPreview((p) => p === "revealed" ? "open" : "revealed")}
           busy={controlsBusy}
         />
-        <ChainColumn slips={data.slips} blocked={blocked} pulse={pulse} receipts={data.receipts.filter((r) => revealed.has(r.id))} review={activeStep === 4} />
+        <ChainColumn slips={data.slips} blocked={blocked} pulse={pulse} receipts={data.receipts.filter((r) => revealed.has(r.id))} review={activeStep === 4}
+          busy={controlsBusy} onRecheck={(receipt, attemptId) => { void recheckAttempt(receipt, attemptId); }} />
         <MorganPane
           granted={!!original}
           granting={granting}

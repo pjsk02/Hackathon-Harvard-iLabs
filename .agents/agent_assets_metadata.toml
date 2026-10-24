@@ -13,4 +13,16 @@ size = 16536
 mtime_ms = 1792859604360
 storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:31bb959a-6725-4b94-8f0f-9ce556ca6654/da07cbcf-0291-4dd4-9b20-e46f788e5df5/f88d4537-373f-445c-9417-cc80726881d1"
 storage_version_token = "1792859833114665"
+[[outputs]]
+id = "w5yrgrtCDrmGad1w1mPSX"
+uri = "file://docs/P1_P2_P3_INTEGRATION.md"
+type = "text"
+title = "P1 / P2 / P3 integration handoff"
+description = "Implemented changes, API compatibility notes, verified test results, and limits for the next live check."
+logical_id = "36e9ff32-cf6b-4845-b100-cedae829a00d"
+content_hash = "sha256:42a3d124ef50f2e1d4e6f0dc3f40a8ef7ecf5a153f26dd52fc13d5a324d98f05"
+size = 6890
+mtime_ms = 1792863154550
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:27d20b68-9e8c-4ebe-bd58-28e2147dcdeb/36e9ff32-cf6b-4845-b100-cedae829a00d/3aaba9d1-e0ea-4e73-856a-0400679eaeef"
+storage_version_token = "1792863229551483"
 content_type = "text/markdown"

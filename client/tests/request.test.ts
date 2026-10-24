@@ -110,9 +110,9 @@ test("a rejected Reset preserves the original recovery guard", async () => {
   assert.equal(transport.pendingAction()?.path, "/api/act");
 });
 
-test("the GET self-test is guarded because it can create real records", async () => {
+test("the manual POST self-test is guarded because it can create real records", async () => {
   const transport = createRequester({ fetcher: async () => { throw new Error("lost reply"); } });
-  await assert.rejects(transport.request("/api/selftest", { mutates: true }), unknown);
+  await assert.rejects(transport.request("/api/selftest", { method: "POST" }), unknown);
   assert.equal(transport.pendingAction()?.path, "/api/selftest");
 });
 

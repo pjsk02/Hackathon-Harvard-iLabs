@@ -1,6 +1,6 @@
 // Browser-only test responses. Never imported by the application or sent to its server.
 import type { Browser, HTTPRequest, Page } from "puppeteer-core";
-import type { Receipt, Slip, StateResponse } from "../../shared/contract";
+import type { HealthResponse, Receipt, Slip, StateResponse } from "../../shared/contract";
 import { AGENT_ID, MANDATE_ID, RESOURCE } from "../../shared/contract";
 import { consulting } from "../../shared/scenarios";
 import { randomUUID } from "node:crypto";
@@ -37,7 +37,9 @@ export async function openHarness(browser: Browser, path = "/", isolatedApi?: st
   await page.emulateMediaFeatures([{ name: "prefers-reduced-motion", value: "reduce" }]);
   const state: StateResponse = { scenario: structuredClone(consulting), slips: [], receipts: [], counter: 0 };
   const harness = {
-    context, page, state, sessionId: randomUUID(), calls: [] as { path: string; body: any }[], errors: [] as string[],
+    context, page, state, sessionId: randomUUID(), calls: [] as { path: string; body: any; method: string; headers: Record<string, string> }[], errors: [] as string[],
+    reconciled: null as Receipt | null, reconcileError: false, selftestSuccess: false,
+    health: null as HealthResponse | null,
     grantMode: "success" as "success" | "failure" | "network" | "hold" | "invalid",
     runMode: "success" as "success" | "pretool" | "uncertain" | "network" | "refusal" | "malformed" | "scripted",
     issuerConfigured: true,
@@ -48,7 +50,8 @@ export async function openHarness(browser: Browser, path = "/", isolatedApi?: st
   page.on("request", async (request) => {
     const url = new URL(request.url());
     if (!url.pathname.startsWith("/api/")) { await request.continue(); return; }
-    harness.calls.push({ path: url.pathname, body: request.postData() ? JSON.parse(request.postData()!) : null });
+    harness.calls.push({ path: url.pathname, body: request.postData() ? JSON.parse(request.postData()!) : null,
+      method: request.method(), headers: request.headers() });
     if (isolatedApi) {
       // Forward only to an explicitly supplied, local isolated test server.
       // Its routes have no owner implementations and cannot sign/call a model.
@@ -58,6 +61,7 @@ export async function openHarness(browser: Browser, path = "/", isolatedApi?: st
         headers: {
           "Content-Type": "application/json",
           ...(request.headers()["x-envoi-session"] ? { "X-Envoi-Session": request.headers()["x-envoi-session"] } : {}),
+          ...(request.headers()["idempotency-key"] ? { "Idempotency-Key": request.headers()["idempotency-key"] } : {}),
         },
       });
       await request.respond({ status: response.status, headers: Object.fromEntries(response.headers), body: await response.text() });
@@ -66,9 +70,17 @@ export async function openHarness(browser: Browser, path = "/", isolatedApi?: st
     const send = (value: unknown, status = 200) => request.respond({
       status, contentType: "application/json", headers: { "X-Envoi-Session": harness.sessionId, "X-Envoi-Operation": "idle" }, body: JSON.stringify(value),
     });
+    if (/^\/api\/attempts\/[^/]+\/reconcile$/.test(url.pathname)) {
+      if (harness.reconcileError || !harness.reconciled) await send({ error: "Attempt status is unavailable. Check again manually." }, 503);
+      else {
+        state.receipts = state.receipts.map((r) => r.id === harness.reconciled!.id ? harness.reconciled! : r);
+        await send(harness.reconciled);
+      }
+      return;
+    }
     switch (url.pathname) {
       case "/api/health":
-        await send(harness.badHealth ? { error: "Health unavailable." } :
+        await send(harness.badHealth ? { error: "Health unavailable." } : harness.health ??
           { ok: true, mockChain: false, issuer: harness.issuerConfigured ? permission.mandate.issuer : null, rpc: "https://test.invalid" }, harness.badHealth ? 503 : 200);
         break;
       case "/api/state":
@@ -107,7 +119,9 @@ export async function openHarness(browser: Browser, path = "/", isolatedApi?: st
         await send({ ok: true });
         break;
       case "/api/selftest":
-        await send({ error: "The self-test is not built yet." }, 501);
+        if (request.method() === "GET") await send({ pass: false, steps: [] });
+        else if (harness.selftestSuccess) await send({ pass: true, steps: [] });
+        else await send({ error: "The self-test is not built yet." }, 501);
         break;
       default:
         // Fail closed: never allow an unhandled fixture route to hit a live server.

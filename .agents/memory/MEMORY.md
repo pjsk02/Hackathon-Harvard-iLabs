@@ -1,5 +1,7 @@
-- [Envoi team roles and integrations](envoi-team.md) — user is P3; Aman is P1 and pushes server/chain himself (don't edit it); MOCK_CHAIN deliberately removed; no managed Anthropic here
+- [Envoi team roles and integrations](envoi-team.md) — imported teammate memory does not establish the current operator's role, edit authorization, or available connections.
 - [Vite middleware quirks](vite-middleware.md) — don't pass `root` to createServer (overrides client root → 404); prefer server.ws over deprecated hmr.server.
-- [Git push target](envoi-git-remote.md) — push only to pjsk02/Hackathon-Harvard-iLabs main; rachelgonsalves821/Envoi is a design reference only
+- [Git push target](envoi-git-remote.md) — use the canonical team repository and the currently authorized branch, not a teammate's imported push policy.
 - [Reset protection boundary](reset-boundaries.md) — stale-write guards and retry-cache isolation are separate; neither cancels an already broadcast chain record.
 - [Product language](product-language.md) — use Product guide and product language, not user-facing “demo”; fictional firms are Goldman Stanley and McBain.
+- [Live verification approval](live-verification-approval.md) — approved testnet writes are counted across restarts; the original five-write allowance is spent.
+- [Explorer handoff](explorer-handoff.md) — preserve the presenter’s place in Envoi while opening the independent public transaction record separately.

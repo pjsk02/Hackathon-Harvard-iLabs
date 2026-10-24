@@ -46,3 +46,4 @@ timeoutMs = 120000
 deploymentTarget = "vm"
 build = ["npm", "run", "build"]
 run = ["npm", "run", "start"]
+ignorePorts = false

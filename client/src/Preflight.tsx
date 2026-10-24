@@ -1,8 +1,9 @@
-// Manual diagnostics only: a server response is not proof of signing or chain access.
+// Read-only health checks verify local signing and finalized Monad access, never a model call or write.
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { HealthResponse, SelftestResponse } from "@shared/contract";
 import { api } from "./api";
-import RequestFeedback, { plainRequestError, type ConnectionStatus } from "./RequestFeedback";
+import RequestFeedback, { plainRequestError } from "./RequestFeedback";
+import { canSelftest, healthStatus, readinessLines } from "./health-status";
 
 export default function Preflight() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
@@ -12,6 +13,7 @@ export default function Preflight() {
   const [test, setTest] = useState<SelftestResponse | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  const [testConfirmed, setTestConfirmed] = useState(false);
   const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
   const pending = useSyncExternalStore(api.subscribeToPending, api.pendingAction, api.pendingAction);
   const active = useRef(false);
@@ -56,52 +58,69 @@ export default function Preflight() {
   }
 
   async function runTest() {
-    if (running || checking || api.pendingAction() || !health?.ok || health.mockChain || !health.issuer) return;
+    if (running || checking || api.pendingAction() || !testConfirmed || !canSelftest(health)) return;
     setRunning(true);
     setTest(null);
     setTestError(null);
     try {
+      const state = await api.state();
+      if (state.slips.length || state.receipts.length || state.counter !== 0) {
+        throw new Error("Self-test requires an empty session. Reset the demo explicitly before running it.");
+      }
       setTest(await api.selftest());
     } catch (error) {
       setTestError(plainRequestError(error));
     } finally {
+      // Read back after the manual POST, even if its response was lost. Never repeat it.
       try { await api.state(); } catch (error) { setRecoveryError(plainRequestError(error)); }
       setRunning(false);
+      setTestConfirmed(false);
     }
   }
 
-  const connection: ConnectionStatus = checking
-    ? { state: "checking", message: "Reading server status…" }
-    : !health || !health.ok
-      ? { state: "unavailable", message: "The server has not reported a successful health check." }
-      : { state: "unverified", message: "Server responded. Signing, Monad readback and AI are not verified by this check." };
+  const connection = healthStatus(health, { checking });
+  const lines = health?.readiness ? readinessLines(health.readiness) : null;
+  const selftestReady = canSelftest(health);
 
   return (
     <main className="preflight">
       <h1>Envoi pre-flight</h1>
-      <p className="preflight-intro">Check the connection before granting access. Configuration is not proof that the live workflow works.</p>
+      <p className="preflight-intro">Check local signing and a finalized Monad block before granting access. These checks submit no transactions and make no model call.</p>
       <RequestFeedback connection={connection} pending={pending} error={healthError ?? recoveryError}
         onRecheck={() => { void recheck(); }} rechecking={checking} busy={running} />
       {recoveryMessage && <p className="preflight-note" role="status">{recoveryMessage}</p>}
       <section className="card" aria-labelledby="preflight-configuration" aria-busy={checking}>
-        <h2 className="preflight-heading" id="preflight-configuration">Reported configuration</h2>
+        <h2 className="preflight-heading" id="preflight-configuration">Readiness checks</h2>
         {checking && <><div className="preflight-skeleton" aria-hidden="true" /><p className="preflight-note" role="status">Reading configuration…</p></>}
         {!checking && !health && <p className="preflight-note">Unknown — server configuration could not be read.</p>}
         {health && (
           <ul className="plain preflight-config">
-            <li className={health.ok ? "good" : "bad"}>Server check: {health.ok ? "responded" : "failed"}.</li>
-            <li className={health.mockChain ? "bad" : "muted"}>Chain mode: {health.mockChain ? "practice mode; live requests blocked." : "real-chain mode configured; connection unknown."}</li>
-            <li className={health.issuer ? "muted" : "bad"}>Signer: {health.issuer ? `${health.issuer.slice(0, 6)}…${health.issuer.slice(-4)} configured; signing unverified.` : "not configured; signing unavailable."}</li>
-            <li>Network setting: {health.rpc || "unknown"}. Monad readback unverified.</li>
-            <li>AI connection: unknown; not checked by server health.</li>
+            <li className="muted">Server responded.</li>
+            {lines ? <>
+              <li className={health.readiness!.signing.status === "verified" ? "good" : "bad"}>{lines.signing}</li>
+              <li className={health.mockChain || health.readiness!.monad.status !== "connected" ? "bad" : "good"}>
+                {health.mockChain ? "Practice-chain mode; live demo blocked." : lines.monad}</li>
+              <li>{lines.recording}</li>
+              <li>{lines.ai}</li>
+              <li>Checked at {new Date(health.readiness!.checkedAt).toLocaleString()}.</li>
+            </> : <>
+              <li>{health.mockChain ? "Practice-chain mode; live demo blocked." : "Real-chain mode configured; connection unverified."}</li>
+              <li>Signing unverified; no local signature check reported.</li>
+              <li>AI configuration and live testing unknown.</li>
+              <li>Live recording allowance unknown.</li>
+            </>}
           </ul>
         )}
       </section>
       <section className="card" aria-labelledby="preflight-selftest" aria-busy={running}>
         <h2 className="preflight-heading" id="preflight-selftest">Self-test</h2>
-        <p className="preflight-note" id="selftest-warning">Runs the workflow checks on the server. This may create real Monad records and change the shared session. It only runs when you choose it.</p>
+        <p className="preflight-note" id="selftest-warning">Manual only. Requires an empty session and allowance for FOUR Monad transactions: permission, allowed attempt, blocked attempt, and amended permission. This changes the shared session. Checking status never runs this test.</p>
+        {!selftestReady && !checking && <p className="preflight-note">Self-test unavailable: verify signing and Monad access, resume recording, and confirm at least four transactions remain.</p>}
+        <label className="preflight-note"><input type="checkbox" checked={testConfirmed}
+          disabled={running || checking || !!pending} onChange={(event) => setTestConfirmed(event.target.checked)} />
+          {" "}I confirm the session must be empty and authorize these four transactions within the approved allowance.</label>
         <button type="button" className="ghost" onClick={() => { void runTest(); }}
-          aria-describedby="selftest-warning" disabled={running || checking || !!pending || !health?.ok || health.mockChain || !health.issuer}>
+          aria-describedby="selftest-warning" disabled={running || checking || !!pending || !testConfirmed || !selftestReady}>
           {running ? "Running self-test…" : "Run self-test"}
         </button>
         <div className="preflight-status" aria-live="polite">

@@ -83,11 +83,67 @@
 .allowed-evidence tr.weakest th { color: var(--ink); }
 .allowed-evidence tr.weakest strong { font-weight: 700; }
 .allowed-evidence .empty { font-size: 13px; }
+/* Step 4: a presenter-friendly reading of the same verified evidence, not a new scene. */
+.evidence-review { display: grid; gap: 12px; flex-shrink: 0; }
+.evidence-review-intro { margin: 2px 0 0; font-size: 14px; color: var(--muted); line-height: 1.5; }
+.evidence-review-card {
+  min-width: 0; padding: 16px; border: 1px solid var(--monad-line);
+  border-radius: 14px; background: var(--card); box-shadow: var(--card-shadow);
+}
+.evidence-review-card h3 { margin: 0; font-size: 16px; font-weight: 600; color: var(--ink); }
+.evidence-review-card[data-review-record="request"] { border-top: 3px solid var(--brand-navy); }
+.review-card-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; justify-content: space-between; }
+.review-record-kind { color: var(--monad); font-size: 11px; text-transform: uppercase; letter-spacing: .1em; }
+.review-permission-name { margin: 8px 0 0; font-size: 15px; color: var(--ink); }
+.review-caption { margin: 6px 0 12px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.review-source { margin: 12px 0 2px; color: var(--muted); font-size: 12px; }
+.review-action { margin: 0; color: var(--ink); font-size: 17px; line-height: 1.35; }
+.review-outcome {
+  margin: 8px 0 2px; font-size: clamp(30px, 3vw, 40px); line-height: 1.15;
+  letter-spacing: -.025em; color: var(--bad); font-weight: 600;
+}
+.review-outcome[data-decision="ALLOWED"] { color: var(--good); }
+.review-decision-note { font-size: 13px; margin: 0 0 12px; color: var(--muted); }
+.record-proof { margin-top: 12px; }
+.record-proof-facts {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 5px 12px;
+  border-top: 1px solid var(--line); padding-top: 10px; margin: 0 0 12px; font-size: 13px;
+}
+.record-proof-facts dt { color: var(--muted); }
+.record-proof-facts dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
+.record-proof code { font-family: ui-monospace, monospace; font-size: 12px; overflow-wrap: anywhere; }
+.record-proof .monad-record-link {
+  display: flex; gap: 10px; justify-content: space-between; align-items: center;
+  min-height: 44px; padding: 9px 12px; background: var(--brand-navy); color: var(--on-accent);
+  border: 1px solid var(--brand-navy); border-radius: var(--radius-sm);
+  font-size: 14px; font-weight: 600; text-decoration: none;
+}
+.record-proof .monad-record-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.record-technical { margin-top: 10px; color: var(--muted); font-size: 12px; }
+.record-technical summary { cursor: pointer; min-height: 32px; padding: 5px 0; }
+.record-technical p { margin: 5px 0; overflow-wrap: anywhere; }
+.record-technical code { display: block; margin: 3px 0 8px; }
+.review-attempt-status { font-size: 13px; color: var(--muted); line-height: 1.5; }
+.review-attempt-status[data-attempt-evidence="invalid"] { color: var(--bad); }
+.review-attempt-status .ghost { min-height: 44px; margin-top: 8px; }
+.review-empty { border-left: 2px solid var(--monad-line); padding-left: 10px; margin: 12px 0 0; color: var(--muted); font-size: 13px; }
+.evidence-boundary { margin: 0; padding: 0 2px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.evidence-boundary strong { font-weight: 600; color: var(--ink); }
+.evidence-history { display: flex; flex-direction: column; gap: 10px; }
+.evidence-history > *, .pane-chain .chain > .evidence-review, .pane-chain .chain > .evidence-history { flex-shrink: 0; }
+.stage .evidence-history-title { margin: 10px 0 0; font-size: 13px; color: var(--muted); font-weight: 600; }
+.pane-chain :is(summary, button):focus-visible { outline: 3px solid var(--brand-navy); outline-offset: 3px; }
+.record-proof .record-new-tab { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.chain-empty-guide { margin: 4px 0 0; padding: 16px 14px; border: 1px dashed var(--monad-line); border-radius: 14px; }
+.chain-empty-guide strong { display: block; font-size: 16px; color: var(--ink); }
+.chain-empty-guide p { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
 @media (max-width: 767px) {
   .pane-chain, .pane-client { min-height: 260px; padding: 18px 16px; }
   .pane-chain .chain, .pane-client .client-body { overflow: visible; flex: none; }
   .pane-chain .block, .pane-chain .marker { flex-shrink: 0; }
   .pane-client .stamp { font-size: 40px; }
+  .evidence-review-card { padding: 16px; }
+  .review-outcome { font-size: 36px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .pane-chain .block.pulsing, .pane-client .verdict-checks li, .pane-client .stamp { animation: none !important; }

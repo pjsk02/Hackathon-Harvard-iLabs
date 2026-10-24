@@ -1,5 +1,9 @@
 # Envoi Replit Agent skills
 
+## Current project context
+
+See [RUNNING_CONTEXT.md](RUNNING_CONTEXT.md) for the chronological decisions, owner implications, verification evidence, and outstanding merge conflicts. The installation and early findings below describe earlier project stages, not the current integrated acceptance status.
+
 Eight skills for the hackathon build. Each folder in `.agents/skills/` has one `SKILL.md`. Replit Agent reads every skill's name and description on each chat and loads the full skill only when the task needs it.
 
 ## Install (2 minutes, at 9:30)

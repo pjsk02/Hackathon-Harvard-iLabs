@@ -1,17 +1,17 @@
-// STUB-ISH (owner: P2). The five checks, always all five, in order.
-// Runs against whatever chain module is selected (mock until P1 lands ledger.ts).
-// P2: harden per the envoi-bouncer skill (fail closed, exact detail strings).
+// Deterministic checks; original finalized block context is authoritative.
 import type { Check, Slip } from "../../shared/contract";
-import { AGENT_ID } from "../../shared/contract";
+import { AGENT_ID, RESOURCE } from "../../shared/contract";
 import { actionLabel } from "../../shared/scenarios";
 import { lookup } from "../chain";
 import { digestOf, issuerAddress, recoverSigner } from "../chain/slip";
+import { stampMatchesRequest, type OriginalRequestContext } from "../chain/evidence";
 
 export async function evaluate(
   slip: Slip,
   action: string,
   actionTime: number,
   agentId: string = AGENT_ID,
+  context?: OriginalRequestContext,
 ): Promise<Check[]> {
   const m = slip.mandate;
   const label = actionLabel(action);
@@ -28,7 +28,19 @@ export async function evaluate(
     const want = digestOf(m).toLowerCase();
     const a = slip.anchor ? await lookup(slip.anchor.txHash) : null;
     const matches = !!a && a.status === 1 && a.from.toLowerCase() === issuer && a.data.toLowerCase() === want;
-    if (matches) {
+    if (context) {
+      const bound = context.agentId === agentId && context.action === action &&
+        context.resource === RESOURCE && m.resource === context.resource &&
+        m.scenarioId === context.scenarioId && context.requestBlock.blockTimestamp === actionTime &&
+        context.originalSlip.mandate.resource === context.resource &&
+        context.originalSlip.mandate.scenarioId === context.scenarioId;
+      stampedPass = bound && stampMatchesRequest(slip, a, context.requestBlock, issuer);
+      if (!stampedPass && bound && a && stampMatchesRequest(slip, a, a, issuer) &&
+        a.blockNumber > context.requestBlock.blockNumber) {
+        stampedDetail = "Stamped on Monad after this request";
+      }
+    } else if (matches) {
+      // Compatibility for direct offline callers; real actions always pass context.
       stampedPass = a!.blockTimestamp <= actionTime;
       if (!stampedPass) stampedDetail = "Stamped on Monad after this request";
     }

@@ -57,13 +57,17 @@ export const api = {
     demoPresentation.showReceipts([receipt]);
     return receipt;
   },
+  reconcile: (attemptId: string, receiptId: string) => call<Receipt>(`/api/attempts/${encodeURIComponent(attemptId)}/reconcile`, {
+    method: "POST", mutates: false, label: "Read attempt status",
+    validate: (value): value is Receipt => isReceipt(value) && value.id === receiptId,
+  }),
   reset: () => call<{ ok: true }>("/api/reset", {
     method: "POST", label: "Reset",
     validate: (value): value is { ok: true } => !!value && typeof value === "object" && "ok" in value && value.ok === true,
   }),
   health: () => call<HealthResponse>("/api/health", { validate: isHealth }),
-  // Despite its GET method, the team self-test can create real permissions/records.
-  selftest: () => call<SelftestResponse>("/api/selftest", { mutates: true, label: "Self-test", validate: isSelftest }),
+  // Explicitly manual, guarded write; GET /api/selftest is read-only.
+  selftest: () => call<SelftestResponse>("/api/selftest", { method: "POST", label: "Self-test", validate: isSelftest }),
 };
 
 export type Api = typeof api;

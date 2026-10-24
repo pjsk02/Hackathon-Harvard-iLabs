@@ -10,10 +10,11 @@
     "start": "NODE_ENV=production tsx server/index.ts",
     "typecheck": "tsc --noEmit",
     "test:state": "node --import tsx --test server/state.test.ts server/http.test.ts",
-    "test:chain": "node --import tsx --test server/chain/chain.test.ts server/chain/permission-service.test.ts server/chain/rpc-safety.test.ts",
-    "test:client": "node --import tsx --test client/tests/request.test.ts client/tests/presentation.test.ts client/tests/product-copy.test.ts",
-    "test:ui": "node --import tsx --test --test-concurrency=1 client/tests/ui.test.ts",
-    "test": "npm run test:state && npm run test:chain && npm run test:client"
+    "test:chain": "node --import tsx --test server/chain/chain.test.ts server/chain/permission-service.test.ts server/chain/rpc-safety.test.ts server/chain/attempt-recording.test.ts",
+    "test:agent": "node --import tsx --test server/agent/integration.test.ts",
+    "test:client": "node --import tsx --test client/tests/request.test.ts client/tests/presentation.test.ts client/tests/product-copy.test.ts client/tests/attempt-evidence.test.ts client/tests/attempt-request.test.ts client/tests/health-status.test.ts client/tests/evidence-review.test.ts",
+    "test:ui": "node --import tsx --test --test-concurrency=1 client/tests/ui.test.ts client/tests/attempt-ui.test.ts client/tests/health-ui.test.ts client/tests/evidence-review-ui.test.ts",
+    "test": "npm run test:state && npm run test:chain && npm run test:agent && npm run test:client"
   },
   "repository": {
     "type": "git",

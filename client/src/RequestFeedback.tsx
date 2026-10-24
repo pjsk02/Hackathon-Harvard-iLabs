@@ -1,10 +1,8 @@
 import type { PendingAction } from "./request";
+import type { ConnectionStatus } from "./health-status";
 import "./request-feedback.css";
 
-export type ConnectionStatus = {
-  state: "checking" | "unverified" | "unavailable";
-  message: string;
-};
+export type { ConnectionStatus } from "./health-status";
 
 export type RequestFeedbackProps = {
   connection: ConnectionStatus;
@@ -30,10 +28,11 @@ export default function RequestFeedback({ connection, pending, error, onRecheck,
   const title = waiting ? "Waiting for confirmation"
     : unconfirmed ? "Outcome not confirmed"
     : connection.state === "checking" ? "Checking server"
-    : connection.state === "unavailable" ? "Server unavailable" : "Server status";
+    : connection.state === "verified" ? "Signing verified · Monad connected"
+    : connection.state === "unavailable" ? "Readiness unavailable" : "Server status";
 
   return (
-    <section className="request-feedback" aria-label="Request and connection status">
+    <section className="request-feedback" aria-label="Request and connection status" data-connection-state={connection.state}>
       <div role="status" aria-live="polite" aria-atomic="true">
         <p className="request-feedback-title">{title}</p>
         {pending ? (

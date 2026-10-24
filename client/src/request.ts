@@ -1,5 +1,5 @@
 // Transport only: never retries a write or interprets a lost response as cancellation.
-export type PendingAction = { path: string; label: string; phase: "waiting" | "unconfirmed"; sessionId?: string };
+export type PendingAction = { path: string; label: string; phase: "waiting" | "unconfirmed"; sessionId?: string; idempotencyKey?: string };
 export class ApiError extends Error {
   constructor(message: string, public outcomeUnknown = false) {
     super(message);
@@ -19,6 +19,8 @@ type Options<T> = {
 type Store = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 const STORAGE_KEY = "envoi-unconfirmed-action";
 const ACTIONS = new Set(["/api/slips", "/api/agent/run", "/api/act", "/api/dispute", "/api/reset", "/api/selftest", "/api/agent/eval"]);
+const IDEMPOTENT_ACTIONS = new Set(["/api/agent/run", "/api/act"]);
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function plainError(message: string): string {
   return message
@@ -55,6 +57,9 @@ export function createRequester({
     if (saved && ACTIONS.has(saved.path) && typeof saved.label === "string") {
       pending = { path: saved.path, label: saved.label.slice(0, 80), phase: "unconfirmed" };
       if (typeof saved.sessionId === "string") pending.sessionId = saved.sessionId;
+      if (typeof saved.idempotencyKey === "string" && UUID_V4.test(saved.idempotencyKey)) {
+        pending.idempotencyKey = saved.idempotencyKey;
+      }
     }
   } catch { /* Storage is optional; in-memory request guards still apply. */ }
 
@@ -76,6 +81,9 @@ export function createRequester({
     }
     const sessionId = getSessionId?.();
     const action: PendingAction = { path: url, label: options.label ?? "Action", phase: "waiting", ...(sessionId ? { sessionId } : {}) };
+    // Generate only after the existing concurrency guard, once per logical action.
+    // Uncertain actions retain their identity in session storage; they are never automatically repeated.
+    if (method === "POST" && IDEMPOTENT_ACTIONS.has(url)) action.idempotencyKey = crypto.randomUUID();
     if (mutates) publish(action);
     const controller = new AbortController();
     const timeoutMs = options.timeoutMs ?? (mutates ? actionTimeoutMs : readTimeoutMs);
@@ -94,7 +102,9 @@ export function createRequester({
             headers: {
               ...(options.body === undefined ? {} : { "Content-Type": "application/json" }),
               ...(mutates && sessionId ? { "X-Envoi-Session": sessionId } : {}),
+              ...(action.idempotencyKey ? { "Idempotency-Key": action.idempotencyKey } : {}),
             },
+            credentials: "include",
             body: options.body === undefined ? undefined : JSON.stringify(options.body),
             signal: controller.signal,
           });

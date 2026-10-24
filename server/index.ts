@@ -9,6 +9,7 @@ import { slipsRouter } from "./routes/slips";
 import { actRouter } from "./routes/act";
 import { agentRouter } from "./routes/agent";
 import { selftestRouter } from "./routes/selftest";
+import { attemptsRouter } from "./routes/attempts";
 
 const root = path.resolve(import.meta.dirname, "..");
 const isProd = process.env.NODE_ENV === "production";
@@ -25,6 +26,7 @@ app.use(slipsRouter);
 app.use(actRouter);
 app.use(agentRouter);
 app.use(selftestRouter);
+app.use(attemptsRouter);
 
 app.use("/api", (_req, res) => {
   res.status(404).json({ error: "Unknown API route." });
