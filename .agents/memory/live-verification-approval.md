@@ -9,3 +9,5 @@ On 2026-10-24 the user separately approved at most three additional Monad transa
 **Why:** the allowance is a user-approved spending boundary, not merely a process-local implementation limit. Earlier approval remains spent even when receipt caches disappear.
 
 **How to apply:** keep sends paused during development and obtain a new explicit allowance before live verification. Count every permission, amendment, and attempt commitment. A forced-path chain test is not proof of live Claude behavior; a model call also needs its own deliberate verification decision.
+
+On 2026-10-24 the user explicitly expanded authorization to paid model calls, signing, and real Monad testnet transactions for diagnosing and verifying the product. Do not interpret the earlier no-live-testing task scope as a permanent ban. Keep each verification run bounded, count it durably, and report remaining allowances; resets never create new authorization.

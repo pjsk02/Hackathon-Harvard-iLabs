@@ -49,6 +49,10 @@
 .workspace table { border-collapse:collapse; width:100%; font-size:13px; }
 .workspace th,.workspace td { padding:9px; border-bottom:1px solid var(--line); text-align:left; overflow-wrap:anywhere; }
 .workspace .workspace-options { margin-top:18px; }
+.workspace .monad-handoff { margin:16px 0; display:grid; justify-items:start; gap:8px; }
+.workspace .monad-transaction-button { display:inline-flex; align-items:center; gap:12px; min-height:44px; padding:12px 18px; border-radius:10px; background:var(--brand-navy,#102f43); color:#fff; font-weight:600; text-decoration:none; }
+.workspace .monad-transaction-button:hover { filter:brightness(1.15); }
+.workspace .monad-transaction-button:focus-visible { outline:3px solid #567cca; outline-offset:4px; }
 .workspace .skeleton { height:100px; border-radius:12px; background:#edf2f8; margin:16px 0; }
 .workspace .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
 @media(max-width:767px) { .workspace .workspace-header { padding:14px 16px; } .workspace main { margin:18px auto; } .workspace .workspace-panel { padding:20px 16px; } .workspace h1 { font-size:25px; } .workspace .step-progress button { font-size:12px; } }

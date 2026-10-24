@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ACTIONS, actionLabel } from "@shared/workspace";
+import { ACTIONS, actionLabel, type Conversation } from "@shared/workspace";
 import type { UploadedReport } from "@shared/contract";
 import { ACCEPT, readUpload, type Part } from "./upload";
 import { useWorkspace } from "./use-workspace";
@@ -33,9 +33,17 @@ export default function SplitApp() {
     draft.permissions.every(action => slip.mandate.allowedActions.includes(action)));
   const result = run && data?.conversations.find(item => !run.previous.includes(item.id) &&
     item.permissionId === run.permissionId && item.task === run.task &&
-    JSON.stringify(item.report) === JSON.stringify(run.report));
+    item.report?.fileName === run.report?.fileName && item.report?.text === run.report?.text);
   const receipts = result ? data?.receipts.filter(receipt => result.receiptIds.includes(receipt.id) &&
     receipt.mandateId === result.permissionId && receipt.source === "agent") ?? [] : [];
+
+  function viewRequest(conversation: Conversation) {
+    const input = { task: conversation.task, report: conversation.report };
+    setLastRequest(input);
+    setRun(conversation.permissionId ? { ...input, permissionId: conversation.permissionId,
+      previous: data?.conversations.filter(item => item.id !== conversation.id).map(item => item.id) ?? [] } : null);
+    setStep(2);
+  }
 
   async function upload(file: File) {
     setUploading(true); setUploadError(null);
@@ -87,7 +95,7 @@ export default function SplitApp() {
                   <article className="bubble"><span className="kicker">You</span><pre>{conversation.task}</pre>{conversation.report && <details><summary>{conversation.report.fileName}</summary><pre className="untrusted">{conversation.report.text}</pre></details>}</article>
                   <article className="bubble atlas"><span className="kicker">Atlas</span><pre>{conversation.transcript || (conversation.status === "pending" ? "Response pending." : conversation.status === "unknown" ? "Outcome unknown. Check status in options." : "No written response returned.")}</pre></article>
                 </div>
-                <details><summary>Request options</summary><button disabled={locked} onClick={() => { setLastRequest({ task: conversation.task, report: conversation.report }); setRun(null); setStep(2); }}>Use this request for enforcement</button></details>
+                <details><summary>Request options</summary><button disabled={locked} onClick={() => viewRequest(conversation)}>{conversation.permissionId ? "View enforcement result" : "Use this request for enforcement"}</button></details>
               </div>)}
             </div>
             <form className="composer" onSubmit={e => { e.preventDefault(); void send(); }}>
@@ -122,7 +130,7 @@ export default function SplitApp() {
           </>}
         </section>
         <details className="workspace-options"><summary>History &amp; workspace options</summary>
-          <details><summary>Previous conversations</summary>{data.conversations.filter(item => previousConversationIds.current?.has(item.id)).map(item => <article className="sheet" key={item.id}><p>{item.task}</p>{item.report && <details><summary>{item.report.fileName}</summary><pre className="untrusted">{item.report.text}</pre></details>}<pre>{item.transcript}</pre></article>)}</details>
+          <details><summary>Previous conversations</summary>{data.conversations.filter(item => previousConversationIds.current?.has(item.id)).map(item => <article className="sheet" key={item.id}><p>{item.task}</p>{item.report && <details><summary>{item.report.fileName}</summary><pre className="untrusted">{item.report.text}</pre></details>}<pre>{item.transcript}</pre>{item.permissionId && <button onClick={() => viewRequest(item)}>View enforcement result</button>}</article>)}</details>
           {paused && <div className="notice">Spending paused.<details><summary>Why?</summary><div className="fine">{uncertain ? "Workspace status is unavailable. Refresh status before spending." : "An operation is pending or unknown. Check its status; do not repeat it."}</div></details></div>}
           <h2>Operations</h2>
           {!data.operations.length && <div className="fine">No operations yet.</div>}

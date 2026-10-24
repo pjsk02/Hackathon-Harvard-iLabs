@@ -61,11 +61,14 @@ export function ReceiptDetail({ receipt }: { receipt: Receipt }) {
   return <article className="sheet">
     <span className="kicker">{actionLabel(receipt.action)}</span>
     <div className={`decision ${receipt.decision === "ALLOWED" ? "" : "blocked"}`}>{receipt.decision}</div>
+    {transactionUrl && <div className="monad-handoff">
+      <a className="monad-transaction-button" href={transactionUrl} target="_blank" rel="noopener noreferrer">Open transaction on Monad <span aria-hidden="true">↗</span><span className="sr-only"> (opens MonadVision in a new tab)</span></a>
+      <div className="fine">Monad testnet · actual transaction on MonadVision</div>
+    </div>}
     <p className="fine">{new Date(receipt.createdAt).toLocaleString()} · {receipt.source === "agent" ? "Agent request" : "Manual request"}<br />Permission: {receipt.mandateId}<br />Receipt: {receipt.id}</p>
     <ul className="checks">{receipt.checks.map(check => <li key={check.id}><span className={check.pass ? "good" : "bad"}>{check.pass ? "✓" : "×"} {check.label}</span><small>{check.detail}</small></li>)}</ul>
     {receipt.decision === "ALLOWED" ? <ResultData data={receipt.data} /> : <div className="fine">Data never left Goldman Stanley.</div>}
     <div className="fine" role="status">{!scopeViolation ? receipt.decision === "ALLOWED" ? "Within scope · no Monad transaction required." : "No scope violation · no Monad transaction required." : transactionUrl ? "Scope violation · transaction confirmed" : pending ? "Scope violation · transaction pending" : "Scope violation · transaction not recorded"}</div>
-    {transactionUrl && <a href={transactionUrl} target="_blank" rel="noopener noreferrer">View request transaction ↗</a>}
     {scopeViolation && receipt.attemptEvidence && "detail" in receipt.attemptEvidence && <details><summary>Recording details</summary><div className="fine">{receipt.attemptEvidence.detail}</div></details>}
   </article>;
 }

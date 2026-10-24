@@ -59,7 +59,9 @@ async function harness(savedChat = false) {
     if (!url.pathname.startsWith("/api/")) { await request.continue(); return; }
     const body = request.postData() ? JSON.parse(request.postData()!) : null;
     calls.push({ path: url.pathname, body, key: request.headers()["idempotency-key"] });
-    const respond = (value: unknown, status = 200) => request.respond({ status, contentType: "application/json", body: JSON.stringify(value) });
+    // PostgreSQL jsonb may reorder object keys. The UI must match document values,
+    // never JSON.stringify equality of request and response objects.
+    const respond = (value: unknown, status = 200) => request.respond({ status, contentType: "application/json", body: JSON.stringify(value, (_key,item) => item && typeof item === "object" && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a],[b])=>a.localeCompare(b))) : item) });
     if (url.pathname === "/api/workspace" && request.method() === "GET") {
       await respond(options.failGet ? { error: "Status unavailable." } : state, options.failGet ? 503 : 200); return;
     }
@@ -206,6 +208,10 @@ test("recorded scope violation links its actual transaction, never its permissio
     await chat(h); await clickText(h.page, "Continue to Monad enforcement");
     await clickText(h.page, "Sign selected permissions"); await clickText(h.page, "Run Atlas");
     assert.equal(await h.page.$eval('a[target="_blank"]', a => a.getAttribute("href")), `https://testnet.monadvision.com/tx/0x${"7".repeat(64)}`);
+    assert.ok(await h.page.$eval(".monad-transaction-button", a => a.textContent?.includes("Open transaction on Monad")));
+    assert.equal(await h.page.$eval(".monad-transaction-button", a => a.getAttribute("rel")), "noopener noreferrer");
+    await h.page.focus(".monad-transaction-button");
+    assert.ok(await h.page.$eval(".monad-transaction-button", a => a === document.activeElement));
     assert.ok((await h.page.$eval("main", n => n.textContent))?.includes("Scope violation · transaction confirmed"));
     assert.equal(await h.page.$(`.workspace-panel a[href="${permission.anchor!.explorerUrl}"]`), null);
   } finally { await h.context.close(); }
