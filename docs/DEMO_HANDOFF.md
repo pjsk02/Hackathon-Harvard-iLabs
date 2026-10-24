@@ -34,10 +34,11 @@ not the model or browser, decides whether each request is allowed.
 | Rachel / P3 | `client/**`, state and state routes, route mounting, demo documentation |
 | Team agreement | Changes to `shared/contract.ts`, including attempt-specific evidence |
 
-Do not overwrite another owner's implementation. P1's branch is
-`p1/signing-and-dispute-evidence`; reviewing or running its offline tests is not
-the same as merging it or proving this app works live. Integration findings are
-in [P1 integration review](P1_INTEGRATION_REVIEW.md).
+Do not overwrite another owner's implementation. P1's code from
+`p1/signing-and-dispute-evidence` is integrated unchanged, excluding the project
+archive and workspace metadata/settings. Live sends remain paused. Code
+integration and offline tests do not prove this app works live; see
+[P1 integration review](P1_INTEGRATION_REVIEW.md).
 
 P2 should identify Atlas as Baine's research assistant working on JT Morgan's
 review, give it the actual supplied report, and expose the existing two tools.

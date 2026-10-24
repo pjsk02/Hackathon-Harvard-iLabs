@@ -9,7 +9,7 @@ npm run test:ui
 npm run build
 ```
 
-- `npm test`: isolated state/reset and browser-transport unit tests.
+- `npm test`: isolated state/reset, integrated P1 chain/service and browser-transport unit tests. `npm run test:chain` runs P1's suite alone.
 - `npm run test:ui`: opens the running development app in Chromium, intercepts
   every `/api/*` request inside a private test browser context, and exercises the
   actual UI. It never sends a signing, model, Reset or self-test request to the
@@ -48,7 +48,8 @@ Do not run browser tests against production.
 
 ## Live acceptance is separate
 
-After merging P1/P2, verify the same user flow with no interception: genuine
+P1 code is integrated with sends paused; after the remaining P2 integration and
+separate live-test approval, verify the same user flow with no interception: genuine
 signature, finalized Monad readback, real uploaded text supplied to Claude,
 deterministic checks, each attempt's own public record, reset/retry isolation,
 and errors that never masquerade as successful outcomes.

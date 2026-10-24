@@ -23,17 +23,17 @@ The latest user decisions override old mock, timing-display and driver-key requi
 ## Verification
 
 - TypeScript check and production client build pass.
-- Ten reset tests pass, including actual local HTTP overlap between a delayed write and Reset and P1 getter compatibility: `npm run test:state`.
+- State tests cover actual local HTTP overlap between a delayed write and Reset, P1 getter compatibility, reset/retry in the integrated P1 service, and zero-allowance safety: `npm run test:state`.
 - Fifteen request tests pass for timeouts, response-body deadlines, malformed data, uncertainty persistence, duplicate calls, readonly recovery, paused-send configuration and reset boundaries: `npm run test:client`.
 - Eight runnable browser checks cover ordered controls, upload/reveal and request body, invalid uploads, busy guards, two-press Reset, lost-response recovery, reduced motion, error handling, evidence links and projector/mobile viewports: `npm run test:ui`.
 - Success-state browser checks use isolated test responses, not a shipping simulation mode. They verify the UI contract, **not** Monad or a live model.
-- P1's 38 checks and P3's 10 state checks also pass together with the current state module in a temporary review checkout; P1 files remain unmerged.
+- Aman's 15 P1 implementation/test files are integrated unchanged; `npm test` now also runs his offline chain/service suite. No live sends were used for integration.
 
 ## Not complete / not claimed
 
 | Gate | Owner / dependency |
 | --- | --- |
-| Real permission signing + Monad readback | Aman's `p1/signing-and-dispute-evidence` branch has been reviewed and its 38 offline tests independently passed; it has not been merged or live-tested here. Sends are paused by default. |
+| Live permission signing + Monad readback | Aman's implementation is integrated and offline-tested. Live sends remain explicitly paused at zero; issuer setup and a separately approved live test are still required. |
 | Block-order evaluation and original request context | Jay/P2 must adopt P1's interface. Timestamp comparison alone is insufficient. |
 | Attempt-specific explorer links / commitment status | Await agreed P1/P2 response shape. Current `Receipt.explorerUrl` points at the permission, not an attempt commitment. |
 | Live model and uploaded-report consumption | Local agent remains a scripted stub; local route still ignores `upload`. UI delivery of extracted text does not mean Claude read it. |

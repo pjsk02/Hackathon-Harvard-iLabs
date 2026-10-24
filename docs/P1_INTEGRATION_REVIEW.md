@@ -1,15 +1,37 @@
 # P1 branch integration review — 2026-10-24
 
-Reviewed `origin/p1/signing-and-dispute-evidence` without merging or editing P1
-files. All **38 offline tests passed independently** in a detached temporary
-checkout. Those tests use controlled RPC/ledger dependencies; no live sends were
-made from this workspace. P1's live-run document is its author's evidence, not
-an independently reproduced live run here.
+Following review, the user approved integrating **P1 code only, with live sends
+paused**. The 15 files under `server/chain/**` and `server/routes/slips.ts` were
+imported unchanged from `origin/p1/signing-and-dispute-evidence`. The ZIP,
+branch workspace settings, agent metadata/memory and unrelated planning files
+were not imported. This is a selective code integration, not a wholesale branch
+merge.
+
+All **38 P1 offline tests passed independently** during review. Those tests use
+controlled RPC/ledger dependencies, not a live demo. P1's live-run document is
+its author's evidence, not an independently reproduced live run here.
 
 The P1 suite was also run against the current P3 state module and routes in the
 temporary checkout: **48 combined offline checks passed** (P1's 38 plus P3's 10).
 This confirms compatibility for the covered paths, not the remaining live
 request-context or attempt-recording integration.
+
+The integrated app keeps `MONAD_MAX_TRANSACTIONS=0` explicitly in development,
+with practice-chain mode still off. State tests now also exercise the actual
+P1 service against P3's generation hook and ensure a zero allowance reaches
+neither a signer nor RPC submission. `npm test` includes the P1 suite.
+No live send or live smoke script has been run as part of integration.
+
+The subsequently supplied project ZIP was inspected without extraction: all 14
+P1 code/test files match the integrated GitHub version byte-for-byte, with no
+additional P1 source files. Its only P1 difference is README wording about the
+reset-getter mismatch already addressed by P3's compatibility alias. The ZIP's
+Git internals and workspace configuration were not imported.
+
+Final integration checks: 65 offline checks and 8 isolated browser checks pass;
+type checking and production build pass. The running app answers read-only
+health/state requests with practice mode off. The issuer remains unconfigured,
+and no live-chain signing or readback success is claimed.
 
 ## Present
 
@@ -39,11 +61,12 @@ request-context or attempt-recording integration.
    allowance slot. This is different from retrying unknown submission, which
    retains signed bytes. Aman should explicitly confirm/document that policy
    and cover a same-permission retry after a confirmed failed record.
-5. **Do not merge workspace baggage blindly.** The branch includes `.replit`,
+5. **Workspace baggage excluded from this integration.** The branch includes `.replit`,
    unrelated workspace/memory metadata and a project ZIP containing Git internals.
-   Exclude the archive/unrelated workspace metadata, preserve this app's
-   deployment settings and inspect the archive for exposure without assuming
-   it is safe. No secret contents were inspected in this review.
+   Those files were excluded and this app's deployment settings preserved.
+   The only local configuration change is the explicitly approved zero send
+   allowance. The archive still needs owner review/removal on the source branch;
+   no secret contents were inspected in this review.
 
 ## Before any live run
 

@@ -10,9 +10,10 @@
     "start": "NODE_ENV=production tsx server/index.ts",
     "typecheck": "tsc --noEmit",
     "test:state": "node --import tsx --test server/state.test.ts",
+    "test:chain": "node --import tsx --test server/chain/chain.test.ts server/chain/permission-service.test.ts server/chain/rpc-safety.test.ts",
     "test:client": "node --import tsx --test client/tests/request.test.ts",
     "test:ui": "node --import tsx --test --test-concurrency=1 client/tests/ui.test.ts",
-    "test": "npm run test:state && npm run test:client"
+    "test": "npm run test:state && npm run test:chain && npm run test:client"
   },
   "repository": {
     "type": "git",

@@ -14,6 +14,7 @@ Owner: Rachel (P3). Source of truth: `ENVOI_BUILD_SPEC.md` (sections 7, 8, 11) a
 - Current audit and verification evidence: [P3_ACCEPTANCE.md](P3_ACCEPTANCE.md).
 - Stage controls follow Rachel's current order: **1 Grant → 2 Clean example → 3 Injected example → 4 Monad evidence**. R previews/reveals the report; 5 Force and 6 Dispute are optional, not the primary story.
 - P3's client and reset-generation protection are implemented. Complete live acceptance still requires P1/P2 integration and a published rehearsal.
+- P1's code-only integration is present with live sends paused; P2's block-order/request-context and real-agent integration still remain.
 - `MOCK_CHAIN` remains off. Browser-only mock mode has been removed; even `?mock=1` uses live API calls.
 - Rachel explicitly removed the elapsed-time/bracket display from scope. Underlying permission/request ordering must still be correct.
 

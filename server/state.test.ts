@@ -6,6 +6,8 @@ import type { Slip } from "../shared/contract";
 import { errorHandler } from "./http";
 import { captureResetGeneration, stateRouter } from "./routes/state";
 import * as state from "./state";
+import { createPermissionService } from "./chain/permission-service";
+import { createMonadLedger } from "./chain/ledger";
 
 // Isolated state fixtures: never rendered by the app, no protected data or keys.
 const slip: Slip = {
@@ -33,6 +35,48 @@ test("P1's generation getter observes exactly the same reset boundary", () => {
   state.reset();
   assert.equal(state.getGeneration(), before + 1);
   assert.equal(state.getGeneration(), state.getResetGeneration());
+});
+
+test("integrated P1 sees a reset during its first read and starts a fresh retry", async () => {
+  let ready!: () => void;
+  let resume!: () => void;
+  let reads = 0;
+  let signs = 0;
+  const started = new Promise<void>((resolve) => { ready = resolve; });
+  const gate = new Promise<void>((resolve) => { resume = resolve; });
+  const service = createPermissionService({
+    state,
+    chain: {
+      latestReference: async () => {
+        if (++reads > 1) throw new Error("Fresh operation reached its first read.");
+        ready();
+        await gate;
+        return { chainId: 10143, blockNumber: 1, blockHash: `0x${"1".repeat(64)}`, blockTimestamp: 1 };
+      },
+      anchor: async () => { throw new Error("This reset test must never submit a record."); },
+      lookup: async () => null,
+    },
+    evaluate: async () => [],
+    sign: async () => { signs++; throw new Error("This reset test must never sign."); },
+  });
+  const original = state.withResetGeneration(state.getGeneration(), () => service.issue("consulting"));
+  await started;
+  state.reset();
+  const rejected = assert.rejects(original, /session changed/);
+  resume();
+  await rejected;
+  await assert.rejects(service.issue("consulting"), /Fresh operation reached its first read/);
+  assert.equal(reads, 2);
+  assert.equal(signs, 0);
+  assert.deepEqual(state.listSlips(), []);
+});
+
+test("zero live-send allowance prevents signing and RPC submission in the real ledger", async () => {
+  let calls = 0;
+  const forbidden = () => { calls++; throw new Error("No signer or RPC should be touched."); };
+  const ledger = createMonadLedger(async () => forbidden(), forbidden, { maxTransactions: 0 });
+  await assert.rejects(ledger.anchor(`0x${"2".repeat(64)}`), /paused/);
+  assert.equal(calls, 0);
 });
 
 test("current-generation writes and existing synchronous callers still work", () => {

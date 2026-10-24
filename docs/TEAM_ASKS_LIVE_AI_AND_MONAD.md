@@ -46,7 +46,7 @@ The requested demo includes on-chain attempts. P1's reviewed branch records perm
 
 - Please carry it in an **additive** field on `Receipt`, e.g. `anchor?: Anchor | null` (same shape as the slip's anchor), rather than reusing `receipt.explorerUrl`, which today points at the slip that was checked (the dispute scene depends on that).
 - After the response shape is agreed, the screen can link each attempt to its own record. Rachel does not want an elapsed-time/bracket display; block ordering still matters to the backend decision.
-- `MOCK_CHAIN` is already removed from the development environment (Rachel, Oct 24). Grant shows "The Monad connection is not built yet" until your `ledger.ts` and `slip.ts` land. The `ISSUER_PRIVATE_KEY` secret must be added in this Repl's Secrets (workspace **and** deployment); it does not travel with the git push.
+- `MOCK_CHAIN` remains removed. P1's real ledger and signing implementation are now integrated, but `MONAD_MAX_TRANSACTIONS=0` explicitly keeps sends paused. The issuer credential and a separately approved live-test allowance are still required; credentials do not travel with a Git push.
 
 ## Reset-generation interface for Aman and Jay
 
@@ -68,4 +68,4 @@ addReceipt(receipt: NewReceipt, expectedGeneration?: number): Receipt
 - Reset increments the generation before clearing memory. It cannot cancel or erase a record already broadcast to Monad; the guard only prevents it from appearing as a new-session result.
 - `npm run test:state` checks the alias, reset boundaries and a concurrent HTTP reset. The full P1 retry-cache/P2 original-request integration still requires their updated code and tests.
 
-Aman's `p1/signing-and-dispute-evidence` branch was fetched and its 38 offline tests independently passed on 2026-10-24. It has not been merged into this app. P3 now exposes the exact getter name it consumes. P2's retained request context and block-order evaluation remain unimplemented in current main; see [integration review](P1_INTEGRATION_REVIEW.md).
+Aman's `p1/signing-and-dispute-evidence` implementation was selectively integrated on 2026-10-24, unchanged and with sends paused. P3 exposes the exact getter name it consumes. P1's offline suite is part of `npm test`. P2's retained request context and block-order evaluation remain unimplemented in current main; see [integration review](P1_INTEGRATION_REVIEW.md).
