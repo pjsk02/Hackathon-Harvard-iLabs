@@ -66,7 +66,15 @@ Verified in this workspace: typecheck, production build, **92 offline unit/API c
 
 The prior five-transaction authorization has been consumed. Keep `MONAD_MAX_TRANSACTIONS=0` until the user approves a new bounded verification pass. Proposed minimal next pass: **three new transactions** for an original permission, one allowed attempt, and one blocked attempt. This is not the four-write self-test and does not verify a new dispute. A deliberate live Claude check is separate and billable to the configured provider.
 
-No new live model calls or Monad writes were performed during this integration. Do not describe offline assertions as new live evidence.
+No new live model calls or Monad writes were performed during the initial integration. Do not describe offline assertions as new live evidence.
+
+### Subsequent approval and priority status fix
+
+The user subsequently approved the proposed three new transactions and one Claude proposal-only call, with the latest team changes incorporated first. That new allowance has not been used by the readiness checks.
+
+The health endpoint now performs an on-demand local signature/recovery check and a real finalized-block read from Monad. The live check on 2026-10-24 verified signing and returned Monad testnet block 73,875,579. It submitted no transaction and made no model call. The UI now reports verified connectivity separately from paused or exhausted recording allowance. Eight health-status unit checks, three browser checks and typecheck passed. This is connection verification, not a new transaction test.
+
+The latest main/P3 and P2 branches have been fetched but are not yet merged into this integration branch. Finish that reconciliation before using the new live-test allowance.
 
 ## Explicit limitations
 

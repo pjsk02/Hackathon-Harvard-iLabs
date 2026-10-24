@@ -1,11 +1,11 @@
 // GET /api/state, POST /api/reset, GET /api/health (P3)
 import { Router } from "express";
 import type { RequestHandler } from "express";
-import type { HealthResponse, ResetResponse, StateResponse } from "../../shared/contract";
+import type { ResetResponse, StateResponse } from "../../shared/contract";
 import { DEFAULT_SCENARIO_ID, getScenario } from "../../shared/scenarios";
 import * as state from "../state";
-import { isMockChain, issuerAddressOrNull, rpcUrl } from "../chain";
 import { SESSION_HEADER } from "../demo-guard";
+import { checkReadiness } from "../readiness";
 
 export const stateRouter = Router();
 
@@ -32,12 +32,6 @@ stateRouter.post("/api/reset", (_req, res) => {
   res.json(body);
 });
 
-stateRouter.get("/api/health", (_req, res) => {
-  const body: HealthResponse = {
-    ok: true,
-    mockChain: isMockChain(),
-    issuer: issuerAddressOrNull(),
-    rpc: rpcUrl(),
-  };
-  res.json(body);
+stateRouter.get("/api/health", async (_req, res) => {
+  res.json(await checkReadiness());
 });

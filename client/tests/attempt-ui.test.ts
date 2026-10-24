@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import puppeteer, { type Browser } from "puppeteer-core";
 import { idle, openHarness } from "./ui-harness";
 import { attemptReceipt, permission } from "./attempt-fixtures";
+import { verifiedHealth } from "./health-fixtures";
 
 let browser: Browser;
 before(async () => {
@@ -93,6 +94,10 @@ test("browser act/run requests carry UUID v4 identity; checking status never rep
 test("self-test requires explicit four-transaction confirmation and an empty session", async () => {
   const h = await openHarness(browser, "/?preflight=1");
   try {
+    h.health = verifiedHealth();
+    await h.page.click('[data-testid="check-status"]');
+    await h.page.waitForSelector('[data-connection-state="verified"]');
+    await h.page.waitForFunction(() => !(document.querySelector('[data-testid="check-status"]') as HTMLButtonElement).disabled);
     const button = '#preflight-selftest + p ~ button';
     assert.equal(await h.page.$eval(button, (b) => (b as HTMLButtonElement).disabled), true);
     assert.equal(h.calls.filter((c) => c.path === "/api/selftest").length, 0);

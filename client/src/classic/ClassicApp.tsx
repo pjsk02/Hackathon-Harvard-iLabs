@@ -9,6 +9,7 @@ import { recordedAnchor } from "../split/evidence";
 import AttemptEvidence from "../AttemptEvidence";
 import { evidenceCounts } from "../attempt-evidence";
 import RequestFeedback, { type ConnectionStatus } from "../RequestFeedback";
+import { canRecord, healthStatus } from "../health-status";
 
 const short = (h: string) => (h.length > 12 ? `${h.slice(0, 6)}…${h.slice(-4)}` : h);
 const time = (sec: number) => new Date(sec * 1000).toLocaleTimeString();
@@ -45,9 +46,7 @@ export default function ClassicApp() {
     const [state, health] = await Promise.allSettled([api.state(), api.health()]);
     if (state.status === "fulfilled") setData(state.value);
     else setError((state.reason as Error).message);
-    setConnection(health.status === "fulfilled" && health.value.ok && !health.value.mockChain && state.status === "fulfilled"
-      ? { state: "unverified", message: "Server responded; signing and the Monad connection are not yet verified." }
-      : { state: "unavailable", message: "The live demo is unavailable; check server status before submitting." });
+    setConnection(healthStatus(health.status === "fulfilled" ? health.value : null, { stateReadable: state.status === "fulfilled" }));
     if (health.status === "rejected") setError((previous) => previous ?? (health.reason as Error).message);
     setChecking(false);
     operation.current = false;
@@ -147,7 +146,7 @@ export default function ClassicApp() {
     { key: "5", label: "Force salary request", onClick: actions.force, enabled: !!original, why: "Sign the slip first" },
     { key: "6", label: "Replay the dispute", onClick: actions.dispute, enabled: hasBlocked && !amended, why: amended ? "Already disputed" : "Block a request first" },
     { key: "0", label: resetArmed ? "Press 0 again" : "Reset", onClick: actions.reset, enabled: true },
-  ].map((button) => ["1", "2", "3", "5", "6"].includes(button.key) && (pending || connection.state !== "unverified")
+  ].map((button) => ["1", "2", "3", "5", "6"].includes(button.key) && (pending || !canRecord(connection))
     ? { ...button, enabled: false, why: "Check server and action status first" } : button);
 
   useEffect(() => {

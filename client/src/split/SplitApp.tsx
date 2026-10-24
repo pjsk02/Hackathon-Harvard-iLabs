@@ -7,6 +7,7 @@ import { AGENT_ID, MANDATE_ID } from "@shared/contract";
 import { consulting } from "@shared/scenarios";
 import { api } from "../api";
 import RequestFeedback, { type ConnectionStatus } from "../RequestFeedback";
+import { canRecord, healthStatus } from "../health-status";
 import { COPY, answerFrom, shownChecks, weekday } from "../labels";
 import BainePane from "./BainePane";
 import ChainColumn from "./ChainColumn";
@@ -47,7 +48,7 @@ export default function SplitApp() {
   const [connection, setConnection] = useState<ConnectionStatus>({ state: "checking", message: "Reading server status…" });
   const [rechecking, setRechecking] = useState(false);
   const pending = useSyncExternalStore(api.subscribeToPending, api.pendingAction, api.pendingAction);
-  const chainUnavailable = connection.state !== "unverified";
+  const chainUnavailable = !canRecord(connection);
   const controlsBusy = busy || rechecking || pending?.phase === "waiting";
   const canSubmit = !controlsBusy && !pending && !chainUnavailable;
   const operation = useRef(false);
@@ -98,16 +99,10 @@ export default function SplitApp() {
       const latest = s.receipts[0];
       if (latest) setStage({ action: latest.action, receipt: latest, phase: "done", checksShown: 5, earlier: null });
     } else setError((stateResult.reason as Error).message);
-    if (healthResult.status === "rejected" || stateResult.status === "rejected") {
-      setConnection({ state: "unavailable", message: "Could not read the server and demo status; check again before submitting." });
-      if (healthResult.status === "rejected") setError((previous) => previous ?? (healthResult.reason as Error).message);
-    } else if (!healthResult.value.ok || healthResult.value.mockChain) {
-      setConnection({ state: "unavailable", message: healthResult.value.mockChain
-        ? "Practice-chain mode is enabled; the live demo is blocked."
-        : "The server reported a failed health check." });
-    } else {
-      setConnection({ state: "unverified", message: "Server responded; signing and the Monad connection are not yet verified." });
-    }
+    setConnection(healthStatus(healthResult.status === "fulfilled" ? healthResult.value : null, {
+      stateReadable: stateResult.status === "fulfilled",
+    }));
+    if (healthResult.status === "rejected") setError((previous) => previous ?? (healthResult.reason as Error).message);
     operation.current = false;
     setRechecking(false);
   }, []);

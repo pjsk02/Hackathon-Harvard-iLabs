@@ -1,6 +1,6 @@
 // Browser-only test responses. Never imported by the application or sent to its server.
 import type { Browser, HTTPRequest, Page } from "puppeteer-core";
-import type { Receipt, Slip, StateResponse } from "../../shared/contract";
+import type { HealthResponse, Receipt, Slip, StateResponse } from "../../shared/contract";
 import { AGENT_ID, MANDATE_ID, RESOURCE } from "../../shared/contract";
 import { consulting } from "../../shared/scenarios";
 
@@ -37,6 +37,7 @@ export async function openHarness(browser: Browser, path = "/") {
   const harness = {
     context, page, state, calls: [] as { path: string; body: any; method: string; headers: Record<string, string> }[], errors: [] as string[],
     reconciled: null as Receipt | null, reconcileError: false, selftestSuccess: false,
+    health: null as HealthResponse | null,
     grantMode: "success" as "success" | "failure" | "network" | "hold" | "invalid",
     badState: false, badHealth: false, held: null as HTTPRequest | null,
   };
@@ -60,7 +61,7 @@ export async function openHarness(browser: Browser, path = "/") {
     }
     switch (url.pathname) {
       case "/api/health":
-        await send(harness.badHealth ? { error: "Health unavailable." } :
+        await send(harness.badHealth ? { error: "Health unavailable." } : harness.health ??
           { ok: true, mockChain: false, issuer: permission.mandate.issuer, rpc: "https://test.invalid" }, harness.badHealth ? 503 : 200);
         break;
       case "/api/state":

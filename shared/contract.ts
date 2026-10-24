@@ -104,7 +104,17 @@ export type SelftestStep = { scene: string; expected: string; got: string; ms: n
 export type SelftestResponse = { pass: boolean; steps: SelftestStep[] };
 export type StateResponse = { scenario: Scenario; slips: Slip[]; receipts: Receipt[]; counter: number };
 export type ResetResponse = { ok: true };
-export type HealthResponse = { ok: boolean; mockChain: boolean; issuer: string | null; rpc: string };
+export type Readiness = {
+  checkedAt: string;
+  signing: { status: "verified" | "unavailable"; detail: string };
+  monad: { status: "connected" | "unavailable" | "practice"; chainId: number | null; blockNumber: number | null; detail: string };
+  ai: { status: "configured" | "missing"; detail: string };
+  recording: { paused: boolean; remaining: number; detail: string };
+};
+export type HealthResponse = {
+  ok: boolean; mockChain: boolean; issuer: string | null; rpc: string;
+  readiness?: Readiness;
+};
 export type ErrorResponse = { error: string };
 
 // Constants

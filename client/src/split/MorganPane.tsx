@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import type { Receipt } from "@shared/contract";
 import RequestFeedback, { type ConnectionStatus } from "../RequestFeedback";
+import { healthStatus } from "../health-status";
 import type { PendingAction } from "../request";
 import { COPY, itemLabel, shortLabel } from "../labels";
 import { evidenceChecks, profitabilityRows } from "./evidence";
@@ -24,10 +25,7 @@ type Props = {
   busy?: boolean;
 };
 
-const defaultConnection: ConnectionStatus = {
-  state: "unverified",
-  message: "Signing, Monad and AI have not been verified. Open pre-flight for details.",
-};
+const defaultConnection = healthStatus(null);
 
 export default function MorganPane({
   granted, granting, canGrant, onGrant, stage, error, allowedReceipt,

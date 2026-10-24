@@ -1,4 +1,4 @@
-import { getAddress, hexlify, randomBytes, TypedDataEncoder, verifyTypedData, Wallet } from "ethers";
+import { getAddress, hexlify, randomBytes, TypedDataEncoder, verifyMessage, verifyTypedData, Wallet } from "ethers";
 import type { Mandate } from "../../shared/contract";
 import { AGENT_ID, CHAIN_ID, MANDATE_ID, RESOURCE } from "../../shared/contract";
 
@@ -27,6 +27,17 @@ function issuerWallet(): Wallet {
 }
 
 export const issuerAddress = (): string => issuerWallet().address;
+
+/** Local-only challenge, not a permission or a transaction. Never return the signature. */
+export async function verifyIssuerSigning(): Promise<string> {
+  const wallet = issuerWallet();
+  const challenge = `Envoi local readiness check: ${hexlify(randomBytes(16))}`;
+  const signature = await wallet.signMessage(challenge);
+  if (verifyMessage(challenge, signature).toLowerCase() !== wallet.address.toLowerCase()) {
+    throw new Error("The local signing check failed.");
+  }
+  return wallet.address;
+}
 
 export function assertMandate(value: unknown): asserts value is Mandate {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid permission slip.");
