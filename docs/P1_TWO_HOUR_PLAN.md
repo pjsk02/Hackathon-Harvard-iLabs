@@ -4,6 +4,8 @@
 
 **Status:** Revised after three independent adversarial reviews. Planning only; no implementation or real transaction authorized by this document.
 
+**Execution update:** Subsequent P1 implementation and the separately approved real-chain tests are documented in `P1_TEAM_HANDOFF.md` and `P1_LIVE_VERIFICATION.md`. The evidence inventory below is the pre-implementation baseline, not the latest test status.
+
 **Baseline:** Existing P1 branch, not a greenfield build. Jay owns P2; Rachel owns P3. Follow the original build spec except for explicitly agreed security amendments. Do not edit teammate-owned files without their agreement or explicit authorization.
 
 ## 1. Target and scope

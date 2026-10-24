@@ -11,6 +11,17 @@ export type LookupResult = ChainReference & {
   status: number; transactionIndex: number; finalized: true;
 };
 
+/** Proposed internal P2/P3 handoff; not an addition to the frozen public Receipt. */
+export type OriginalRequestContext = {
+  generation: number;
+  originalSlip: Slip;
+  requestBlock: ChainReference;
+  agentId: string;
+  action: string;
+  resource: string;
+  scenarioId: string;
+};
+
 /** P2 can adopt this without changing the frozen Receipt contract prematurely. */
 export function stampMatchesRequest(
   slip: Slip,

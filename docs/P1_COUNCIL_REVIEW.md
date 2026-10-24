@@ -2,6 +2,8 @@
 
 Prepared for Aman Upadhyay. One review round completed on the current P1 implementation and the candidate two-hour plan. Application source, configuration and chain state were not changed during review.
 
+**Historical review:** These findings describe the pre-implementation code. See `P1_TEAM_HANDOFF.md` for implemented fixes versus remaining owner dependencies and `P1_LIVE_VERIFICATION.md` for the later authorized tests.
+
 ## Method and limits
 
 Three independent model-backed reviewers received the same candidate plan and different adversarial briefs. One performed a security/code review; the other two challenged delivery feasibility and teammate integration. This is not a guaranteed mixture of model vendors, a formal security audit, or three additional engineers assigned to implementation.

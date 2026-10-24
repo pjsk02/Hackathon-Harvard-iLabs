@@ -27,3 +27,4 @@ export function issuerAddressOrNull(): string | null {
 export type { LookupResult } from "./ledger";
 export type { ChainReference } from "./evidence";
 export { stampMatchesRequest } from "./evidence";
+export { withChainDeadline } from "./deadline";

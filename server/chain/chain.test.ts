@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { Wallet, Transaction, id, keccak256 } from "ethers";
 import { buildMandate, digestOf, issuerAddress, recoverSigner, signMandate } from "./slip";
-import { createMonadLedger } from "./ledger";
+import { createMonadLedger as createLedger } from "./ledger";
 import { createMockLedger } from "./mockLedger";
 import { stampMatchesRequest } from "./evidence";
-import { ChainError, createRpcClient, type RpcCall } from "./rpc";
+import { ChainError, RpcWriteError, createRpcClient, type RpcCall } from "./rpc";
 import { mondayNineNY, slipsRouter } from "../routes/slips";
 import { act } from "../gateway/gateway";
 import * as state from "../state";
@@ -16,6 +16,8 @@ import type { Mandate, Slip } from "../../shared/contract";
 
 // Fresh, unfunded, process-local test key. Never writes a key to disk or prints it.
 const wallet = new Wallet(Wallet.createRandom().privateKey);
+const createMonadLedger = (rpc: RpcCall, signer = () => wallet) =>
+  createLedger(rpc, signer, { maxTransactions: 20 });
 process.env.ISSUER_PRIVATE_KEY = wallet.privateKey;
 process.env.MOCK_CHAIN = "1";
 after(() => { delete process.env.ISSUER_PRIVATE_KEY; });
@@ -69,6 +71,87 @@ function transport(options: { unfinalized?: boolean; mismatched?: boolean; statu
   };
   return { rpc, records, options, broadcasts: () => broadcasts };
 }
+
+test("real ledgers default to paused and enforce a unique transaction budget", async () => {
+  const fake = transport();
+  const paused = createLedger(fake.rpc, () => wallet);
+  await assert.rejects(paused.anchor(id("paused")), /paused until a test limit is approved/);
+  assert.equal(fake.broadcasts(), 0);
+  const ledger = createLedger(fake.rpc, () => wallet, { maxTransactions: 1 });
+  const first = await ledger.anchor(id("budget-one"));
+  assert.deepEqual(await ledger.anchor(id("budget-one")), first);
+  await assert.rejects(ledger.anchor(id("budget-two")), /limit has been reached/);
+  state.reset(); // Resetting UI/session state cannot replenish the sender's budget.
+  await assert.rejects(ledger.anchor(id("budget-three")), /limit has been reached/);
+  assert.deepEqual(ledger.budgetStatus(), { limit: 1, reserved: 1, pendingTxHash: null });
+  assert.equal(fake.broadcasts(), 1);
+});
+
+test("invalid transaction limits and high gas prices fail before broadcast", async () => {
+  const fake = transport();
+  for (const maxTransactions of [-1, 1.5, Number.NaN, Infinity]) {
+    await assert.rejects(createLedger(fake.rpc, () => wallet, { maxTransactions }).anchor(id("invalid-limit")), /nonnegative integer/);
+  }
+  const ledger = createLedger(fake.rpc, () => wallet, { maxTransactions: 1, maxGasPriceWei: 1n });
+  await assert.rejects(ledger.anchor(id("too-expensive")), /gas price exceeds/);
+  assert.equal(fake.broadcasts(), 0);
+  assert.equal(ledger.budgetStatus().reserved, 0);
+});
+
+test("proven initial rejection releases the pending transaction and budget reservation", async () => {
+  for (const outcome of ["rejected", "not-submitted"] as const) {
+    const fake = transport();
+    let reject = true;
+    const rpc: RpcCall = async (method, params, deadline) => {
+      if (method === "eth_sendRawTransaction" && reject) {
+        reject = false;
+        throw new RpcWriteError("Submission was definitely not accepted.", outcome);
+      }
+      return fake.rpc(method, params, deadline);
+    };
+    const ledger = createLedger(rpc, () => wallet, { maxTransactions: 1 });
+    await assert.rejects(ledger.anchor(id(`rejected-${outcome}`)), /definitely not accepted/);
+    assert.deepEqual(ledger.budgetStatus(), { limit: 1, reserved: 0, pendingTxHash: null });
+    const stamp = await ledger.anchor(id(`next-${outcome}`));
+    assert.ok(stamp.txHash);
+    assert.equal(fake.broadcasts(), 1);
+    assert.equal(ledger.budgetStatus().reserved, 1);
+  }
+});
+
+test("uncertain submission followed by rejection retains identical bytes and blocks new issuance", async () => {
+  const fake = transport();
+  const sent: string[] = [];
+  const rpc: RpcCall = async (method, params, deadline) => {
+    if (method === "eth_sendRawTransaction") {
+      sent.push(params[0] as string);
+      throw new RpcWriteError("Unresolved submission.", sent.length === 1 ? "uncertain" : "rejected");
+    }
+    return fake.rpc(method, params, deadline);
+  };
+  const ledger = createLedger(rpc, () => wallet, { maxTransactions: 2, operationMs: 120 });
+  await assert.rejects(ledger.anchor(id("first-unknown")), ChainError);
+  const pendingHash = ledger.budgetStatus().pendingTxHash;
+  assert.ok(pendingHash);
+  await assert.rejects(ledger.anchor(id("must-not-replace")), ChainError);
+  assert.equal(sent.length, 2);
+  assert.equal(sent[0], sent[1]);
+  assert.deepEqual(ledger.budgetStatus(), { limit: 2, reserved: 1, pendingTxHash: pendingHash });
+  assert.equal(fake.records.size, 0);
+});
+
+test("failed mined transactions consume the send budget while lost replies do not consume it twice", async () => {
+  const failed = transport({ status: 0 });
+  const failedLedger = createLedger(failed.rpc, () => wallet, { maxTransactions: 1 });
+  await assert.rejects(failedLedger.anchor(id("failed-but-paid")), /does not match/);
+  await assert.rejects(failedLedger.anchor(id("over-budget")), /limit has been reached/);
+  const lost = transport({ lostBroadcastReply: true });
+  const ledger = createLedger(lost.rpc, () => wallet, { maxTransactions: 1 });
+  await ledger.anchor(id("accepted-with-lost-reply"));
+  await ledger.anchor(id("accepted-with-lost-reply"));
+  assert.equal(ledger.budgetStatus().reserved, 1);
+  assert.equal(lost.broadcasts(), 1);
+});
 
 test("genuine EIP-712 signing recovers the configured issuer", async () => {
   const mandate = make();
@@ -203,6 +286,8 @@ test("HTTP integration: real signatures on explicit mock, allow/block/dispute, w
     assert.equal(response.status, 200);
     const slip = await response.json() as Slip;
     assert.equal(recoverSigner(slip.mandate, slip.signature), issuerAddress());
+    const retried = await (await post("/api/slips", { scenarioId: "consulting" })).json();
+    assert.deepEqual(retried, slip);
     const request = { mandateId: slip.mandate.mandateId, agentId: slip.mandate.agentId, action: allowed };
     const margins = await act(request, "forced");
     assert.equal(margins.decision, "ALLOWED");
@@ -220,6 +305,10 @@ test("HTTP integration: real signatures on explicit mock, allow/block/dispute, w
     assert.equal(disputed.data, null);
     assert.deepEqual(disputed.checks.filter((c: { pass: boolean }) => !c.pass).map((c: { id: string }) => c.id), ["stamped"]);
     assert.equal(state.getSlip(disputed.mandateId)?.mandate.expiresAt, slip.mandate.expiresAt);
+    const counterBeforeRetry = state.getCounter();
+    const retriedDispute = await (await post("/api/dispute")).json();
+    assert.deepEqual(retriedDispute, disputed);
+    assert.equal(state.getCounter(), counterBeforeRetry);
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));

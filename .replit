@@ -10,6 +10,7 @@ expertMode = true
 
 [userenv.development]
 MOCK_CHAIN = "0"
+MONAD_MAX_TRANSACTIONS = "0"
 
 [userenv.shared]
 
