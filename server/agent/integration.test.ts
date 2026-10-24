@@ -5,9 +5,9 @@ import type { AddressInfo } from "node:net";
 import express, { type Router } from "express";
 import { AGENT_ID, MANDATE_ID, type Slip } from "../../shared/contract";
 import { ATTEMPT_CHECK_IDS } from "../../shared/attempt-record";
-import { createAgent, validateAgentInput } from "./agent";
-import { createAgentRouter } from "../routes/agent";
-import { createSelftestRouter } from "../routes/selftest";
+import { createAgent, validateAgentInput } from "./workspace-agent";
+import { createAgentRouter } from "../routes/workspace-agent-compat";
+import { createSelftestRouter } from "../routes/workspace-selftest-compat";
 import { captureResetGeneration } from "../routes/state";
 import { createOperationCache } from "../operations";
 import { errorHandler } from "../http";
@@ -17,7 +17,7 @@ import { createMonadLedger } from "../chain/ledger";
 import { createPermissionService } from "../chain/permission-service";
 import { createAttemptService } from "../chain/attempts";
 import { stampMatchesRequest, type OriginalRequestContext } from "../chain/evidence";
-import { createGateway } from "../gateway/gateway";
+import { createGateway } from "../gateway/workspace-gateway";
 
 const wallet = fakeWallet();
 process.env.ISSUER_PRIVATE_KEY = wallet.privateKey; // Offline child-process fixture only.

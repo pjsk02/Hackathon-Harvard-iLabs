@@ -2,7 +2,7 @@
 import { Router } from "express";
 import * as chain from "../chain";
 import { createPermissionService } from "../chain/permission-service";
-import { evaluate } from "../gateway/gateway";
+import { evaluate } from "../gateway/workspace-gateway";
 import * as state from "../state";
 
 export const slipsRouter = Router();

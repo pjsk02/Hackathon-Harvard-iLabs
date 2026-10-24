@@ -3,15 +3,22 @@ import { Router } from "express";
 import type { ActRequest } from "../../shared/contract";
 import { act } from "../gateway/gateway";
 import { httpError } from "../http";
-import { once } from "../operations";
 
 export const actRouter = Router();
 
-actRouter.post("/api/act", async (req, res) => {
-  const { agentId, mandateId, action } = (req.body ?? {}) as Partial<ActRequest>;
-  if (![agentId, mandateId, action].every((v) => typeof v === "string" && v.length > 0 && v.length <= 128)) {
-    throw httpError(400, "agentId, mandateId and action must be short, non-empty strings.");
+export function parseActRequest(body: unknown): ActRequest {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw httpError(400, "agentId, mandateId and action are required.");
   }
-  const input = { agentId: agentId!, mandateId: mandateId!, action: action! };
-  res.json(await once(req.get("Idempotency-Key"), "act", input, () => act(input, "forced")));
+  const { agentId, mandateId, action } = body as Record<string, unknown>;
+  const valid = (value: unknown): value is string =>
+    typeof value === "string" && value.length > 0 && value.length <= 200 && value.trim() === value;
+  if (!valid(agentId) || !valid(mandateId) || !valid(action)) {
+    throw httpError(400, "agentId, mandateId and action must be non-empty strings of at most 200 characters.");
+  }
+  return { agentId, mandateId, action };
+}
+
+actRouter.post("/api/act", async (req, res) => {
+  res.json(await act(parseActRequest(req.body), "forced"));
 });

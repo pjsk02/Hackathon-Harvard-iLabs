@@ -22,7 +22,7 @@ const SALARIES = [
 ];
 
 // The only export: action name -> data function. No generic getData(any).
-export const DATA = {
+export const DATA = Object.freeze({
   read_regional_margins: () => MARGINS.map((r) => ({ ...r })),
   read_employee_salaries: () => SALARIES.map((r) => ({ ...r })),
   read_revenue: () => MARGINS.map(({ region, revenueM }) => ({ region, revenueUsd: revenueM * 1_000_000, period: "Q3 2026" })),
@@ -38,4 +38,4 @@ export const DATA = {
     { control: "Vendor review", status: "Needs review", openFindings: 3 },
     { control: "Access review", status: "Current", openFindings: 0 },
   ],
-} as const;
+} as const);

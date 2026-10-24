@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { UUID_PATTERN } from "../../shared/attempt-record";
-import { attempts } from "../gateway/gateway";
+import { attempts } from "../gateway/workspace-gateway";
 import { httpError } from "../http";
 
 export const attemptsRouter = Router();

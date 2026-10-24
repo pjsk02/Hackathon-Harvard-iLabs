@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { pool, freshDocument, inWorkspace, load, reserve, checkpoint, finish, type Workspace } from "./repository";
 import { ACTIONS, validSelection } from "../../shared/workspace";
-import { createGateway } from "../gateway/gateway";
+import { createGateway } from "../gateway/workspace-gateway";
 import * as state from "../state";
 import { AGENT_ID, CHAIN_ID } from "../../shared/contract";
 import type { Slip } from "../../shared/contract";
