@@ -58,7 +58,7 @@ export default function BainePane({ feed, preview, attachment, previewParts, can
         </button>
         <button onClick={onSend} disabled={!canSend}>{COPY.send}</button>
       </div>
-      <a className="sample-link" href="/samples/Q3-Review-v2.html" download>{COPY.upload.sample}</a>
+      <a className="sample-link" href="/samples/JT-Morgan-Q3-Data-Request.docx" download>{COPY.upload.sample}</a>
 
       {preview !== "closed" && (
         <AttachmentPreview fileName={attachment.fileName} parts={previewParts} revealed={preview === "revealed"} onClose={onClosePreview} />

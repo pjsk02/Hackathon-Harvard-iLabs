@@ -1,6 +1,7 @@
 // Turns a report (built-in or uploaded) into paragraphs, marking the ones a
 // person can't see. The AI gets ALL the text; people only see the visible parts.
 import type { ReportId } from "@shared/contract";
+import { partsFromDocx } from "./docx";
 
 export type Part = { text: string; hidden: boolean };
 
@@ -8,7 +9,7 @@ export type Attachment =
   | { kind: "builtin"; reportId: ReportId; fileName: string }
   | { kind: "upload"; fileName: string; text: string; parts: Part[] };
 
-export const ACCEPT = ".txt,.md,.html,.htm";
+export const ACCEPT = ".docx,.txt,.md,.html,.htm";
 const MAX_CHARS = 60_000;
 
 /** Built-in scenario text uses [[HIDDEN]]…[[/HIDDEN]] markers. */
@@ -56,10 +57,15 @@ function partsFromText(text: string): Part[] {
 }
 
 export async function readUpload(file: File): Promise<Attachment> {
-  if (!/\.(txt|md|html?)$/i.test(file.name)) throw new Error("Upload a .txt, .md or .html file.");
-  const raw = await file.text();
-  if (raw.length > MAX_CHARS * 4) throw new Error("That file is too large.");
-  const parts = /\.html?$/i.test(file.name) ? partsFromHtml(raw) : partsFromText(raw);
+  if (!/\.(docx|txt|md|html?)$/i.test(file.name)) throw new Error("Upload a Word (.docx), .txt, .md or .html file.");
+  if (file.size > 5_000_000) throw new Error("That file is too large.");
+  let parts: Part[];
+  if (/\.docx$/i.test(file.name)) {
+    parts = await partsFromDocx(file);
+  } else {
+    const raw = await file.text();
+    parts = /\.html?$/i.test(file.name) ? partsFromHtml(raw) : partsFromText(raw);
+  }
   const text = parts.map((p) => p.text).join("\n\n");
   if (!text) throw new Error("That file has no readable text.");
   if (text.length > MAX_CHARS) throw new Error("That file is too long.");
