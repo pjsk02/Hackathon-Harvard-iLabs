@@ -14,7 +14,8 @@ import { chatWithDocument } from "../agent/chat";
 import { httpError, HttpError } from "../http";
 import { activeExternal, budget, checkpoint, finish, freshDocument, load, pool, reserve, spend, transaction, workspace, workspaceSession, type Operation, type Workspace } from "../storage/repository";
 
-export const workspaceRouter = Router();
+export function createWorkspaceRouter(chat = chatWithDocument) {
+const workspaceRouter = Router();
 workspaceRouter.use("/api/workspace", workspaceSession);
 
 function requestKey(value: unknown): string {
@@ -64,9 +65,10 @@ async function perform(key: string, kind: string, input: unknown, work: (w: Work
       await finish(w,op,pending.rowCount ? "unknown" : "complete",pending.rowCount ? "The decision is saved; public recording is unconfirmed. Check status without repeating the request." : "Completed and saved.");
     } catch (error) {
       const external = op.payload?.external === true;
-      const detail = external ? "Completion is unconfirmed. Check status; this operation will not be repeated automatically."
+      const detail = external && kind === "chat" ? "No answer was received; the provider outcome and charge remain unknown. This message is closed and will not be repeated. You may send a new message."
+        : external ? "Completion is unconfirmed. Check status; this operation will not be repeated automatically."
         : error instanceof HttpError ? error.message : "The operation could not complete. No external work was started.";
-      await finish(w,op,external ? "unknown" : "failed",detail);
+      await finish(w,op,external && kind !== "chat" ? "unknown" : "failed",detail);
       throw error instanceof HttpError ? error : httpError(503, detail);
     }
   }));
@@ -165,7 +167,7 @@ workspaceRouter.post("/api/workspace/chat", async (req,res) => {
     op.payload = {external:true,conversationId:op.id};
     await checkpoint(w,op,op.payload);
     try {
-      conversation.transcript = await chatWithDocument(input.task!,input.upload ?? null,history);
+      conversation.transcript = await chat(input.task!,input.upload ?? null,history);
       conversation.status = "complete";
     } catch(error) { conversation.status="unknown"; throw error; }
   }));
@@ -175,13 +177,14 @@ workspaceRouter.post("/api/workspace/reset", async (req,res) => {
   const id = requestKey(req.get("Idempotency-Key"));
   const w = workspace();
   await transaction(async c => {
-    const locked = (await c.query("SELECT generation FROM envoi_workspaces WHERE id=$1 FOR UPDATE",[w.id])).rows[0];
+    const locked = (await c.query("SELECT generation,active_operation FROM envoi_workspaces WHERE id=$1 FOR UPDATE",[w.id])).rows[0];
     const prior = (await c.query("SELECT workspace_id,kind FROM envoi_operations WHERE id=$1",[id])).rows[0];
     if (prior) {
       if (prior.workspace_id !== w.id || prior.kind !== "reset") throw httpError(409,"This request identifier was already used.");
       return;
     }
     if (locked.generation !== w.generation) throw httpError(409,"The workspace changed; reload first.");
+    if (locked.active_operation) throw httpError(409,"An operation is active or unconfirmed. Check its status before resetting.");
     const doc = freshDocument(); doc.state.generation = w.generation + 1;
     await c.query("UPDATE envoi_operations SET status='unknown',detail='Workspace reset; external completion remains unconfirmed.' WHERE workspace_id=$1 AND status='pending'",[w.id]);
     await c.query("SELECT pg_advisory_xact_lock(9172402)");
@@ -192,7 +195,6 @@ workspaceRouter.post("/api/workspace/reset", async (req,res) => {
   });
   res.json(await response(await load(w.id)));
 });
-
 // Recovery is read-only externally: never repeats signing, a paid call, or a broadcast.
 workspaceRouter.post("/api/workspace/reconcile", async (req,res) => {
   requestKey(req.get("Idempotency-Key"));
@@ -207,6 +209,15 @@ workspaceRouter.post("/api/workspace/reconcile", async (req,res) => {
   if (!aged.rowCount) throw httpError(409,"The operation may still be running. Check again after one minute; no request was repeated.");
   op.owner = newOwner;
   const records = (await pool.query("SELECT * FROM envoi_broadcasts WHERE operation_id=$1",[id])).rows;
+  if (op.kind === "chat" || op.kind === "draft") {
+    const conversation = w.document.conversations.find(c=>c.id===op.id);
+    const complete = op.payload?.phase === "ready";
+    if (conversation && !complete) conversation.status="unknown";
+    await finish(w,op,complete ? "complete" : "failed",complete ? "Saved outcome recovered; nothing was repeated." :
+      op.kind === "chat" ? "No saved answer can be recovered; provider completion and charges remain unknown. This message is closed without retry. You may send a new message." :
+        "The interrupted save is closed. Review the restored draft and save again if needed.");
+    res.json(await response(await load(w.id))); return;
+  }
   let unresolved = false;
   await state.withSnapshot(w.document.state, async () => {
     for (const record of records) {
@@ -246,3 +257,6 @@ workspaceRouter.post("/api/workspace/reconcile", async (req,res) => {
   });
   res.json(await response(await load(w.id)));
 });
+return workspaceRouter;
+}
+export const workspaceRouter = createWorkspaceRouter();

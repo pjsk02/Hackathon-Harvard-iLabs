@@ -8,7 +8,7 @@ import * as state from "../state";
 import { AGENT_ID, CHAIN_ID } from "../../shared/contract";
 import type { Slip } from "../../shared/contract";
 import express from "express";
-import { workspaceRouter } from "../routes/workspace";
+import { workspaceRouter, createWorkspaceRouter } from "../routes/workspace";
 import { errorHandler } from "../http";
 import pg from "pg";
 import { readFile } from "node:fs/promises";
@@ -175,4 +175,48 @@ test("database write-ahead journal survives a lost broadcast response and refuse
     await isolated.end();
     await pool.query(`DROP SCHEMA ${schema} CASCADE`);
   }
+});
+
+test("model failure and crash recovery preserve no-retry identity but permit distinct new messages; reset refuses active saves",async()=>{
+  const w=await fixture();
+  const token=randomUUID().replaceAll("-","")+randomUUID().replaceAll("-","");
+  const {hash}=await import("./repository");
+  await pool.query("UPDATE envoi_workspaces SET capability_hash=$2 WHERE id=$1",[w.id,hash(token)]);
+  let calls=0;
+  const app=express();app.use(express.json());
+  app.use(createWorkspaceRouter(async()=>{
+    calls++;
+    if(calls===1) throw new Error("Simulated provider timeout; no external call");
+    return "Offline fixture answer";
+  }));
+  app.use(errorHandler);
+  const server=app.listen(0,"127.0.0.1");
+  await new Promise<void>(r=>server.once("listening",r));
+  const base=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
+  const send=(path:string,body:unknown,key=randomUUID())=>fetch(`${base}/api/workspace${path}`,{method:"POST",headers:{"Content-Type":"application/json",Origin:base,Cookie:`__Host-envoi=${token}`,"Idempotency-Key":key},body:JSON.stringify(body)});
+  try {
+    const first=randomUUID(),body={task:"Summarize my document",report:{fileName:"mine.txt",text:"User text"}};
+    assert.equal((await send("/chat",body,first)).status,503);
+    assert.equal((await pool.query("SELECT status FROM envoi_operations WHERE id=$1",[first])).rows[0].status,"failed");
+    assert.equal((await send("/reconcile",{operationId:first})).status,200);
+    assert.equal((await send("/chat",body,first)).status,409);
+    assert.equal(calls,1);
+    assert.equal((await send("/chat",{...body,task:"A distinct message"})).status,200);
+    assert.equal(calls,2);
+    // Simulate a process dying after reserving model work, before result commit.
+    const crash=await inWorkspace(await load(w.id),()=>reserve(randomUUID(),"chat",{task:"crashed"}));
+    await pool.query("UPDATE envoi_operations SET payload=$2,updated_at=now()-interval '2 minutes' WHERE id=$1",[crash.id,JSON.stringify({external:true})]);
+    assert.equal((await send("/reconcile",{operationId:crash.id})).status,200);
+    assert.equal((await send("/reset",{})).status,200);
+    assert.equal((await send("/chat",{...body,task:"After recovery and reset"})).status,200);
+    assert.equal(calls,3);
+    // Reset cannot turn an interrupted local draft save into model uncertainty.
+    const active=await load(w.id);
+    const draft=await inWorkspace(active,()=>reserve(randomUUID(),"draft",{task:"saving"}));
+    assert.equal((await send("/reset",{})).status,409);
+    assert.equal((await load(w.id)).generation,active.generation);
+    await pool.query("UPDATE envoi_operations SET updated_at=now()-interval '2 minutes' WHERE id=$1",[draft.id]);
+    assert.equal((await send("/reconcile",{operationId:draft.id})).status,200);
+    assert.equal((await send("/reset",{})).status,200);
+  } finally {await new Promise<void>((r,j)=>server.close(e=>e?j(e):r()));}
 });
