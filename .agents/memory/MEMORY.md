@@ -1,1 +1,3 @@
 - [P1 collaboration scope](p1-collaboration-scope.md) — The user owns P1; coordinate shared changes with the separate P2 and P3 builders.
+- [Envoi integrations](envoi-team.md) — Check current integration availability rather than assuming a teammate's environment matches this workspace.
+- [Vite middleware quirks](vite-middleware.md) — don't pass `root` to createServer (overrides client root → 404); prefer server.ws over deprecated hmr.server.

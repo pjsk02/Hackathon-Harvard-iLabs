@@ -1,0 +1,32 @@
+{
+  "name": "envoi",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Envoi hackathon demo: permission slip, bouncer and public record on Monad.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false --ignore 'client/**' server/index.ts",
+    "build": "vite build",
+    "start": "NODE_ENV=production tsx server/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pjsk02/Hackathon-Harvard-iLabs.git"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "ethers": "^6.17.0",
+    "express": "^5.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5"
+  }
+}
