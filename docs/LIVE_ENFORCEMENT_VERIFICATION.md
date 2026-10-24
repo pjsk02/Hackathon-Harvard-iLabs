@@ -56,8 +56,14 @@ violation after restarting the application.
 The verification configuration approved chain=3 and protected-model=6.
 The tests consumed 2 chain writes and 2 protected-model calls plus 2 independent
 document-chat calls. Another live workspace subsequently used the third chain
-write for a permission stamp. The shared chain allowance is therefore exhausted;
+write for a permission stamp. This exhausted the initial shared chain allowance;
 it was not reset or silently replenished. Document chat has separate daily limits.
+
+The user then explicitly approved another **10 testnet transactions and 20
+protected-agent calls**. Cumulative ceilings are now chain=13 and model=26,
+with existing usage preserved. Read-only browser verification confirmed signing,
+protected-agent execution, and chat are available again without consuming any
+of the added allowance.
 
 Recommended product changes, beyond this verification:
 
