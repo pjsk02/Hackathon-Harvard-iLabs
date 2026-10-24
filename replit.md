@@ -13,7 +13,7 @@ Spec: `ENVOI_BUILD_SPEC.md`. Project rules and file ownership: `.agents/skills/e
 - Typecheck: `npm run typecheck`.
 
 ## Environment
-- `MOCK_CHAIN=1` is set for development only, so the chain uses `server/chain/mockLedger.ts`. Must be off from Gate 2.
+- `MOCK_CHAIN` is no longer set anywhere (removed Oct 24): the chain module is P1's real `server/chain/ledger.ts` as soon as it lands. `MOCK_CHAIN=1` still selects `mockLedger.ts` if a teammate needs it locally; the header shows a MOCK CHAIN badge whenever it is on.
 - Needed later (Replit Secrets, workspace AND deployment): `ISSUER_PRIVATE_KEY`, `MONAD_RPC_URL`, and an Anthropic key (`ANTHROPIC_API_KEY`) — the Replit-managed Anthropic integration was not available in this workspace.
 
 ## Layout

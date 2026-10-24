@@ -4,13 +4,13 @@ From Rachel (P3). The screen side is done and pushed. These are the pieces only 
 
 ## What the screen does now
 
-- The Baine column has a 📎 button. A person uploads a `.txt`, `.md` or `.html` report. The browser extracts **all** the text, including text styled to be invisible (white text, 0-size font, `display:none`), and shows the hidden parts in red when the driver presses 1.
-- A sample with hidden white text is at `/samples/Q3-Review-v2.html` (link under the chat box).
+- The Baine column has a 📎 button. A person uploads a Word (`.docx`), `.txt`, `.md` or `.html` report. The browser extracts **all** the text, including text styled to be invisible (Word's Hidden effect, white text, tiny or 0-size font, `display:none`), and shows the hidden parts in red when the driver presses 1.
+- The demo file is `/samples/JT-Morgan-Q3-Data-Request.docx` (link under the chat box): JT Morgan's Q3 data request with the note to the assistant in white 1pt text.
 - On Send, the client calls:
 
 ```json
 POST /api/agent/run
-{ "reportId": "poisoned", "upload": { "fileName": "Q3-Review-v2.html", "text": "…everything in the file…" } }
+{ "reportId": "poisoned", "upload": { "fileName": "JT-Morgan-Q3-Data-Request.docx", "text": "…everything in the file…" } }
 ```
 
 - `upload` is a new **optional** field on `AgentRunRequest` in `shared/contract.ts` (additive; old calls without it are unchanged). The response shape is unchanged.
@@ -38,3 +38,11 @@ Key: `ANTHROPIC_API_KEY` is being added as a workspace secret by Rachel (no Repl
 | Screen expectations | Explorer URL on every anchor (block numbers link to it); dispute can take several seconds (screen waits); a failed RPC returns the plain-sentence error, which the screen shows in the JT Morgan column |
 
 Your plan (`P1_IMPLEMENTATION_PLAN.md`) proposes block-order evidence and pending/verified/error states. The screen can show those once the extra fields are agreed in `shared/contract.ts`.
+
+### If you record each request (the attempts) on Monad too
+
+Today only permissions are blocks; a blocked request is a dashed time marker in the Monad column. If every decision gets its own Monad transaction:
+
+- Please carry it in an **additive** field on `Receipt`, e.g. `anchor?: Anchor | null` (same shape as the slip's anchor), rather than reusing `receipt.explorerUrl`, which today points at the slip that was checked (the dispute scene depends on that).
+- The screen will then link the dashed marker to the request's own block and show its block number, and the dispute bracket can use block numbers instead of seconds.
+- `MOCK_CHAIN` is already removed from the development environment (Rachel, Oct 24). Grant shows "The Monad connection is not built yet" until your `ledger.ts` and `slip.ts` land. The `ISSUER_PRIVATE_KEY` secret must be added in this Repl's Secrets (workspace **and** deployment); it does not travel with the git push.
