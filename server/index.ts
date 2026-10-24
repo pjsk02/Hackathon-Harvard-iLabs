@@ -2,7 +2,8 @@
 import express from "express";
 import { createServer } from "node:http";
 import path from "node:path";
-import { errorHandler } from "./http";
+import { errorHandler, parseApiJson, validateReportBody } from "./http";
+import { createDemoGuard } from "./demo-guard";
 import { captureResetGeneration, stateRouter } from "./routes/state";
 import { slipsRouter } from "./routes/slips";
 import { actRouter } from "./routes/act";
@@ -14,9 +15,10 @@ const isProd = process.env.NODE_ENV === "production";
 const port = Number(process.env.PORT) || 5000;
 
 const app = express();
-app.use(express.json());
+app.use(parseApiJson());
 
 // Route mounting (P3). Each router owns its own /api paths.
+app.use("/api", createDemoGuard(), validateReportBody);
 app.use("/api", captureResetGeneration);
 app.use(stateRouter);
 app.use(slipsRouter);

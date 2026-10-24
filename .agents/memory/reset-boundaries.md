@@ -13,3 +13,15 @@ Unconfirmed browser actions use a conservative recovery guard rather than automa
 **Why:** the shared API has no authoritative operation-status endpoint, and an aborted or lost response can outlive the browser while public-chain work completes. Absence from the in-memory record is not evidence of cancellation.
 
 **How to apply:** future retry/status UX must distinguish a confirmed outcome from unknown completion. A cleared display, page reload, or responding health endpoint cannot establish that the earlier action stopped.
+
+Save tab presentation, not a browser write queue or returned protected rows.
+Bind restored progress to the authoritative run and its permission/receipt
+references, including across process restart.
+
+**Why:** receipt counters and numeric generations can repeat after a restart.
+Preserving a browser's “completed” flags alone can silently attach an old report
+or success state to another visitor's new shared run.
+
+**How to apply:** continuity changes must first read server state, invalidate
+old-run presentation, and never replay a submission to reconstruct the screen.
+Session metadata is not authentication; the demo remains explicitly shared.

@@ -15,6 +15,9 @@ Owner: Rachel (P3). Source of truth: `ENVOI_BUILD_SPEC.md` (sections 7, 8, 11) a
 - Stage controls follow Rachel's current order: **1 Grant → 2 Clean example → 3 Injected example → 4 Monad evidence**. R previews/reveals the report; 5 Force and 6 Dispute are optional, not the primary story.
 - P3's client and reset-generation protection are implemented. Complete live acceptance still requires P1/P2 integration and a published rehearsal.
 - P1's code-only integration is present with live sends paused; P2's block-order/request-context and real-agent integration still remain.
+- The audited concealment, upload-limit, Force recovery and view/reload defects
+  are corrected and tested on the task fork. Shared-run admission protection is
+  in the P3 HTTP scaffold. This is not a main push or published judge-link pass.
 - `MOCK_CHAIN` remains off. Browser-only mock mode has been removed; even `?mock=1` uses live API calls.
 - Rachel explicitly removed the elapsed-time/bracket display from scope. Underlying permission/request ordering must still be correct.
 
@@ -45,7 +48,7 @@ Owner: Rachel (P3). Source of truth: `ENVOI_BUILD_SPEC.md` (sections 7, 8, 11) a
 | --- | --- |
 | Checks always five, order signed, agent, valid, stamped, scope | Stage shows three summary passes plus every failure; failed details remain verbatim (current handoff overrides the older five-visible-check layout) |
 | `/api/agent/run` returns 1–3 receipts (poisoned run usually margins + salaries) | Show up to 2 cards, BLOCKED/REJECTED on top |
-| Agent may fail with 502 "The AI service did not answer. Use Force the request." | Show sentence; Force button stays usable |
+| Agent may fail before any tool with the exact 502 "The AI service did not answer. Use Force the request." | Show sentence; Force stays usable only for this confirmed pre-tool error; unknown outcomes remain guarded |
 | `proposedCalls` may contain an unknown tool name | Chip falls back to a readable label, never crashes |
 | ALLOWED margins `data` is an array of `{region, revenueM, marginPct, changePts}` | Margins table: Region, Margin %; bold the two lowest |
 | `/api/selftest` returns `{pass, steps}` (501 until P2 lands it) | Pre-flight panel shows "not built yet" until then |

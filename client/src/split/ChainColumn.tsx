@@ -38,9 +38,9 @@ export default function ChainColumn({ slips, blocked, pulse, receipts = [], revi
       <p className="chain-sub">{COPY.chainSubtitle}</p>
       {review && (
         <p className="evidence-summary" role="status">
-          <span>{recorded ? "Permission recorded on Monad" : "No confirmed permission record on Monad"}</span>
-          <span>Attempts awaiting chain recording.</span>
-          {recorded > 0 && recorded < slips.length && <span>Some permissions have no confirmed record.</span>}
+          <span>{recorded ? "Permission public-record links supplied by the server" : "No usable permission public-record link supplied"}</span>
+          <span>Attempts are application records, not recorded on Monad.</span>
+          {recorded > 0 && recorded < slips.length && <span>Some permissions have no usable public-record link.</span>}
         </p>
       )}
       <div className="chain">
@@ -104,7 +104,7 @@ function Block({ slip, pulsing, superseded, lateReceipt }: {
       </ul>
       <div className="block-meta">
         {slip.label === "Amended" ? `Dated ${weekday(slip.mandate.issuedAt)}` : `Issued for ${CLIENT}`}
-        {anchor && ` · Recorded ${time(anchor.blockTimestamp)}`}
+        {anchor && ` · Server-reported record time ${time(anchor.blockTimestamp)}`}
       </div>
       {late && <span className="late-tag">{COPY.addedAfter}</span>}
     </div>

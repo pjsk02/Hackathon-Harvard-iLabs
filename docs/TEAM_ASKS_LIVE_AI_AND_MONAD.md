@@ -1,6 +1,8 @@
 # Asks for P1 and P2: live AI, uploads, real Monad
 
-From Rachel (P3). The screen side is done and pushed. These are the pieces only your files can finish.
+From Rachel (P3). The original screen was pushed; the latest correctness fixes
+are verified on a task fork and are not a new combined main/deployment release.
+These are the pieces only your files can finish.
 
 ## What the screen does now
 
@@ -68,5 +70,28 @@ addReceipt(receipt: NewReceipt, expectedGeneration?: number): Receipt
 - P3 mounted request-context middleware before every API router. Existing `addSlip`/`addReceipt` calls inherit the starting generation across awaits automatically and reject stale writes with 409 `{error:"The demo was reset; start this action again."}`.
 - Reset increments the generation before clearing memory. It cannot cancel or erase a record already broadcast to Monad; the guard only prevents it from appearing as a new-session result.
 - `npm run test:state` checks the alias, reset boundaries and a concurrent HTTP reset. The full P1 retry-cache/P2 original-request integration still requires their updated code and tests.
+
+## P3 closeout HTTP/presentation boundary
+
+The frozen JSON contract and owner implementations are unchanged. P3's scaffold:
+
+- Gives `/api/state` a non-cached `X-Envoi-Session` header, changed by every Reset
+  and process restart. The browser echoes it on mutations; a stale supplied token
+  gets 409 before owner code. Existing owner scripts without this metadata remain
+  compatible; this is not authentication or multi-user isolation.
+- Supplies `X-Envoi-Operation: busy|idle` for manual status reads. A single
+  process-wide mutation lock also covers GET self-test/evaluation; it refuses
+  overlapping actions and Reset, and does not release on client disconnection.
+  Owners must await their work before ending a response; asynchronous broadcasts
+  can still finalize after a route fails and are not cancelled by this lock.
+- Accepts JSON up to 512 KiB and checks an optional uploaded report before the
+  agent route: supported extension, nonempty text, 60,000 UTF-16 units and a
+  255-character name. Too-large content gets a plain 413. Jay must still validate
+  at his service boundary and actually pass uploaded text to the real model.
+- Preserves the exact pre-tool error “The AI service did not answer. Use Force
+  the request.” as the only AI failure known safe for Force. Do not use this
+  error after calling a tool. Other potentially submitted outcomes stay guarded.
+- Does **not** add `getRequestContext`, attempt-evidence fields or a recorder.
+  Those still require the agreed P1/P2 interface and actual owner implementation.
 
 Aman's `p1/signing-and-dispute-evidence` implementation was selectively integrated on 2026-10-24, unchanged and with sends paused. P3 exposes the exact getter name it consumes. P1's offline suite is part of `npm test`. P2's retained request context and block-order evaluation remain unimplemented in current main; see [integration review](P1_INTEGRATION_REVIEW.md).

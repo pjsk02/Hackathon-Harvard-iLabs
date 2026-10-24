@@ -24,6 +24,11 @@ not the model or browser, decides whether each request is allowed.
   dataset belongs in the browser bundle.
 - An outage is an error, never a successful rejection or proof of late permission.
 - No elapsed-time bracket or timer is required.
+- This is one shared, in-memory demo. Follow the instructions above the columns;
+  other visitors see the same run. Conflicting actions and Reset are refused
+  while server work is active. Restarts clear the shared run.
+- P3 corrections pass offline checks; live integration and a public judge link
+  are **not verified**. See the current [acceptance status](P3_ACCEPTANCE.md).
 
 ## 2. Ownership and integration
 
@@ -62,9 +67,9 @@ typography, logo and layout. Do not introduce a new dashboard or scenario picker
 | **4** | Monad evidence | Focuses the evidence already returned by the server; no new write |
 | **R** | Open report / Show hidden text / Close report | Local preview only |
 | **5** | Force request — optional | Calls `/api/act`; clearly marked forced, never attributed to the model |
-| **6** | Dispute — optional | Calls `/api/dispute` after an eligible blocked request |
-| **0** | Reset | Requires a second press; resets application state, not the public chain |
-| **V** | Classic view | Alternate layout using the same real APIs and recovery guard |
+| **6** | Dispute — optional | Disabled until original-request evidence and the actual live dispute are verified |
+| **0** | New run / Reset | Click twice (or press twice); resets shared application state and tab presentation, not the public chain |
+| **V** | Classic view | Also a visible button; the same retained upload/progress and recovery guard |
 
 Shortcuts ignore typing fields, held keys and modifier combinations. Controls
 are disabled while work is in flight. With two returned receipts, retain the
@@ -88,8 +93,12 @@ jargon in rendered text. Failed checks must retain their actual cause.
    evidence that Claude consumed it.
 
 Accepted: `.docx`, `.txt`, `.md`, `.html`, `.htm`; maximum 5 MB and 60,000 extracted
-characters. Empty, corrupt, unsupported and oversized inputs fail visibly.
+UTF-16 character units, with a file name up to 255 characters. Empty, corrupt,
+unsupported and oversized inputs fail visibly. The API accepts a 512 KiB JSON
+envelope, enough for supported multibyte/escaped text; file binaries are not sent.
 PDF is not supported. HTML is parsed as text, not executed as uploaded markup.
+Nested hidden inline text is concealed independently of surrounding visible
+text. `[[HIDDEN]]` markers in text/Markdown are supported too.
 
 ## 5. Readiness and recovery
 
@@ -102,12 +111,22 @@ PDF is not supported. HTML is parsed as text, not executed as uploaded markup.
 - Lost, unreadable or ambiguous write responses remain unconfirmed. Never
   automatically retry. This recovery state survives a page reload in the same tab.
 - A returned recorded original permission can resolve an uncertain Grant.
-  An empty state response cannot prove an earlier action was cancelled.
+  It must belong to the same server session that submitted it. An empty or
+  changed-session response cannot prove an earlier action was cancelled.
 - Other uncertain actions stay guarded until a confirmed Reset or a future
   authoritative operation-status interface. Reset does not erase existing Monad
   records; do not use it to conceal unresolved chain activity.
 - `/?preflight=1` exposes configuration and the manual self-test. The self-test
   may create real records or change the session; it is never run automatically.
+- The exact P2 error “The AI service did not answer. Use Force the request.”
+  is reserved for proposal failure before **any** tool execution. Only that
+  known failure unlocks Force; it must not be reused for a failed/unknown tool.
+- Uploads and completion references are saved in the current tab, restored only
+  after an authoritative state read, and cleared on session changes. No writes
+  are automatically replayed. Storage failures have a visible warning.
+- A lightweight per-process limit admits twenty non-Reset actions per minute,
+  including evaluation/self-test. Reset does not refill it. This does not replace
+  approved development/production chain and model budgets.
 
 ## 6. Spoken demo
 

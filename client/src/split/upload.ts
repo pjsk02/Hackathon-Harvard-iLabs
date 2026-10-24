@@ -10,55 +10,73 @@ export type Attachment =
   | { kind: "upload"; fileName: string; text: string; parts: Part[] };
 
 export const ACCEPT = ".docx,.txt,.md,.html,.htm";
-const MAX_CHARS = 60_000;
+export const MAX_CHARS = 60_000;
+export const MAX_FILE_BYTES = 5_000_000;
+export const MAX_FILE_NAME_CHARS = 255;
 
 /** Built-in scenario text uses [[HIDDEN]]…[[/HIDDEN]] markers. */
 export function partsFromScenario(report: string): Part[] {
-  return report.split("\n\n").map((p) => {
-    const m = p.match(/^\[\[HIDDEN\]\]([\s\S]*)\[\[\/HIDDEN\]\]$/);
-    return m ? { text: m[1], hidden: true } : { text: p, hidden: false };
-  });
+  return partsFromText(report);
 }
 
 // Inline styles people use to hide text from readers but not from an AI.
-const HIDING = /(color\s*:\s*(#fff\b|#ffffff\b|white\b|transparent\b|rgba?\([^)]*,\s*0\s*\)))|font-size\s*:\s*0(px|pt|em)?\s*(;|$)|display\s*:\s*none|visibility\s*:\s*hidden|opacity\s*:\s*0(\.0+)?\s*(;|$)/i;
+const HIDING = /(color\s*:\s*(#fff\b|#ffffff\b|white\b|transparent\b|rgba?\(\s*255\s*,\s*255\s*,\s*255\s*(?:,|\))|rgba?\([^)]*,\s*0\s*\)))|font-size\s*:\s*0(px|pt|em)?\s*(;|$)|display\s*:\s*none|visibility\s*:\s*(hidden|collapse)|opacity\s*:\s*0(\.0+)?\s*(;|$)/i;
 
 function isHidden(el: Element | null): boolean {
   for (let e = el; e; e = e.parentElement) {
     if (HIDING.test(e.getAttribute("style") ?? "") || e.hasAttribute("hidden") || e.getAttribute("aria-hidden") === "true") return true;
+    const size = (e.getAttribute("style") ?? "").match(/font-size\s*:\s*([\d.]+)\s*(pt|px)\b/i);
+    if (size && Number(size[1]) <= (size[2].toLowerCase() === "pt" ? 2 : 2.67)) return true;
   }
   return false;
 }
 
-function partsFromHtml(html: string): Part[] {
+export function partsFromHtml(html: string): Part[] {
   const doc = new DOMParser().parseFromString(html, "text/html");
-  doc.querySelectorAll("script,style,noscript").forEach((n) => n.remove());
-  const blocks = doc.body.querySelectorAll("h1,h2,h3,h4,p,li,td,div,span");
+  doc.querySelectorAll("script,style,noscript,template").forEach((n) => n.remove());
   const parts: Part[] = [];
-  const seen = new Set<Element>();
-  blocks.forEach((b) => {
-    // Use leaf-ish blocks only: skip a block if it contains another block.
-    if (b.querySelector("h1,h2,h3,h4,p,li,td,div") || [...seen].some((s) => s.contains(b))) return;
-    if (b.tagName === "SPAN" && b.parentElement && b.parentElement !== doc.body && !isHidden(b)) return;
-    const text = (b.textContent ?? "").replace(/\s+/g, " ").trim();
-    if (!text) return;
-    seen.add(b);
-    parts.push({ text, hidden: isHidden(b) });
-  });
-  if (parts.length === 0) {
-    const text = (doc.body.textContent ?? "").replace(/\s+/g, " ").trim();
-    if (text) parts.push({ text, hidden: false });
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+  let previousBlock: Element | null = null;
+  // Read each text node exactly once. A paragraph's textContent would flatten
+  // a hidden nested span into visible text and also duplicate nested blocks.
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    const text = (node.textContent ?? "").replace(/\s+/g, " ");
+    if (!text) continue;
+    const parent = node.parentElement;
+    const block = parent?.closest("h1,h2,h3,h4,h5,h6,p,li,td,th,div,section,article,pre,blockquote") ?? doc.body;
+    const hidden = isHidden(parent);
+    const previous = parts.at(-1);
+    if (previous && previous.hidden === hidden && block === previousBlock) previous.text += text;
+    else parts.push({ text, hidden });
+    previousBlock = block;
   }
-  return parts;
+  return parts.map((part) => ({ ...part, text: part.text.trim() })).filter((part) => part.text);
 }
 
-function partsFromText(text: string): Part[] {
-  return text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean).map((p) => ({ text: p, hidden: false }));
+export function partsFromText(text: string): Part[] {
+  const parts: Part[] = [];
+  const marker = /\[\[HIDDEN\]\]|\[\[\/HIDDEN\]\]/g;
+  let hidden = false;
+  let start = 0;
+  const add = (value: string) => {
+    for (const paragraph of value.split(/\n\s*\n/)) {
+      if (paragraph.trim()) parts.push({ text: paragraph.trim(), hidden });
+    }
+  };
+  for (const match of text.matchAll(marker)) {
+    add(text.slice(start, match.index));
+    hidden = match[0] === "[[HIDDEN]]";
+    start = match.index! + match[0].length;
+  }
+  add(text.slice(start));
+  return parts;
 }
 
 export async function readUpload(file: File): Promise<Attachment> {
   if (!/\.(docx|txt|md|html?)$/i.test(file.name)) throw new Error("Upload a Word (.docx), .txt, .md or .html file.");
-  if (file.size > 5_000_000) throw new Error("Choose a file smaller than 5 MB.");
+  if (file.size > MAX_FILE_BYTES) throw new Error("Choose a file no larger than 5 MB.");
+  if (file.name.length > MAX_FILE_NAME_CHARS) throw new Error("Choose a file name with no more than 255 characters.");
   let parts: Part[];
   if (/\.docx$/i.test(file.name)) {
     try {

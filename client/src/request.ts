@@ -1,5 +1,5 @@
 // Transport only: never retries a write or interprets a lost response as cancellation.
-export type PendingAction = { path: string; label: string; phase: "waiting" | "unconfirmed" };
+export type PendingAction = { path: string; label: string; phase: "waiting" | "unconfirmed"; sessionId?: string };
 export class ApiError extends Error {
   constructor(message: string, public outcomeUnknown = false) {
     super(message);
@@ -14,10 +14,11 @@ type Options<T> = {
   mutates?: boolean;
   timeoutMs?: number;
   validate?: (value: unknown) => value is T;
+  onSuccess?: (value: T, response: Response) => void;
 };
 type Store = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 const STORAGE_KEY = "envoi-unconfirmed-action";
-const ACTIONS = new Set(["/api/slips", "/api/agent/run", "/api/act", "/api/dispute", "/api/reset", "/api/selftest"]);
+const ACTIONS = new Set(["/api/slips", "/api/agent/run", "/api/act", "/api/dispute", "/api/reset", "/api/selftest", "/api/agent/eval"]);
 
 export function plainError(message: string): string {
   return message
@@ -33,11 +34,13 @@ export function createRequester({
   storage,
   readTimeoutMs = 15_000,
   actionTimeoutMs = 90_000,
+  getSessionId,
 }: {
   fetcher?: typeof fetch;
   storage?: Store;
   readTimeoutMs?: number;
   actionTimeoutMs?: number;
+  getSessionId?: () => string | null;
 } = {}) {
   let pending: PendingAction | null = null;
   const listeners = new Set<() => void>();
@@ -45,6 +48,7 @@ export function createRequester({
     const saved = JSON.parse(storage?.getItem(STORAGE_KEY) ?? "null");
     if (saved && ACTIONS.has(saved.path) && typeof saved.label === "string") {
       pending = { path: saved.path, label: saved.label.slice(0, 80), phase: "unconfirmed" };
+      if (typeof saved.sessionId === "string") pending.sessionId = saved.sessionId;
     }
   } catch { /* Storage is optional; in-memory request guards still apply. */ }
 
@@ -64,7 +68,8 @@ export function createRequester({
     if (mutates && pending && !(url === "/api/reset" && pending.phase === "unconfirmed")) {
       throw new ApiError("An earlier action is not confirmed; check its status before starting another.", true);
     }
-    const action: PendingAction = { path: url, label: options.label ?? "Action", phase: "waiting" };
+    const sessionId = getSessionId?.();
+    const action: PendingAction = { path: url, label: options.label ?? "Action", phase: "waiting", ...(sessionId ? { sessionId } : {}) };
     if (mutates) publish(action);
     const controller = new AbortController();
     const timeoutMs = options.timeoutMs ?? (mutates ? actionTimeoutMs : readTimeoutMs);
@@ -76,11 +81,14 @@ export function createRequester({
       }, timeoutMs);
     });
     try {
-      const result = await Promise.race([
+      const { result, response } = await Promise.race([
         (async () => {
           const response = await fetcher(url, {
             method,
-            headers: options.body === undefined ? undefined : { "Content-Type": "application/json" },
+            headers: {
+              ...(options.body === undefined ? {} : { "Content-Type": "application/json" }),
+              ...(mutates && sessionId ? { "X-Envoi-Session": sessionId } : {}),
+            },
             body: options.body === undefined ? undefined : JSON.stringify(options.body),
             signal: controller.signal,
           });
@@ -93,17 +101,27 @@ export function createRequester({
           if (!response.ok) {
             const raw = json && typeof json === "object" && "error" in json && typeof json.error === "string"
               ? json.error : "The server could not complete the request.";
-            // These explicit setup failures cannot have submitted an action.
-            const notStarted = /not built yet|^ISSUER_PRIVATE_KEY.*(?:not set|missing|invalid)|^Real Monad transactions are paused|^The approved Monad test transaction limit has been reached/i.test(raw);
-            throw new ApiError(plainError(raw), mutates && response.status >= 500 && !notStarted);
+            // This exact P2 error is emitted only around proposal generation,
+            // before the first tool call. Generic AI/502 errors remain unknown.
+            const preToolFailure = url === "/api/agent/run" && response.status === 502 &&
+              raw === "The AI service did not answer. Use Force the request.";
+            const setupFailure = (url === "/api/selftest" && response.status === 501 && raw === "The self-test is not built yet.") ||
+              (url === "/api/slips" && /not built yet/i.test(raw)) ||
+              (url === "/api/slips" && /^(ISSUER_PRIVATE_KEY.*(?:not set|missing|invalid)|Real Monad transactions are paused|The approved Monad test transaction limit has been reached)/i.test(raw));
+            const refused = [400, 404, 413].includes(response.status) ||
+              (url === "/api/reset" && response.status === 409) ||
+              (response.status === 409 && /^(Another demo action is still being processed;|The shared demo changed;|Sign the permission slip first\.)/.test(raw)) ||
+              (response.status === 429 && raw === "Too many demo actions; wait one minute before trying again.");
+            throw new ApiError(plainError(raw), mutates && !preToolFailure && !setupFailure && !refused);
           }
           if (json === null || typeof json !== "object" || (options.validate && !options.validate(json))) {
             throw new ApiError("The server returned an incomplete response.", mutates);
           }
-          return json as T;
+          return { result: json as T, response };
         })(),
         timeout,
       ]);
+      options.onSuccess?.(result, response);
       if (mutates) publish(null);
       return result;
     } catch (cause) {
@@ -123,8 +141,9 @@ export function createRequester({
       return () => { listeners.delete(listener); };
     },
     // Only an authoritative returned permission or confirmed Reset may clear recovery.
-    confirmGrant: () => {
-      if (pending?.path === "/api/slips" && pending.phase === "unconfirmed") publish(null);
+    confirmGrant: (sessionId?: string) => {
+      if (pending?.path === "/api/slips" && pending.phase === "unconfirmed" &&
+        (!getSessionId || (sessionId && pending.sessionId === sessionId))) publish(null);
     },
   };
 }

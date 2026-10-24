@@ -5,6 +5,7 @@ import type { HealthResponse, ResetResponse, StateResponse } from "../../shared/
 import { DEFAULT_SCENARIO_ID, getScenario } from "../../shared/scenarios";
 import * as state from "../state";
 import { isMockChain, issuerAddressOrNull, rpcUrl } from "../chain";
+import { SESSION_HEADER } from "../demo-guard";
 
 export const stateRouter = Router();
 
@@ -13,6 +14,8 @@ export const captureResetGeneration: RequestHandler = (_req, _res, next) => {
 };
 
 stateRouter.get("/api/state", (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.set(SESSION_HEADER, state.getSessionId());
   const body: StateResponse = {
     scenario: getScenario(DEFAULT_SCENARIO_ID)!,
     slips: state.listSlips(),
@@ -24,6 +27,7 @@ stateRouter.get("/api/state", (_req, res) => {
 
 stateRouter.post("/api/reset", (_req, res) => {
   state.reset();
+  res.set(SESSION_HEADER, state.getSessionId());
   const body: ResetResponse = { ok: true };
   res.json(body);
 });
