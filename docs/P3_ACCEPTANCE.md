@@ -5,13 +5,17 @@ The latest user decisions override old mock, timing-display and driver-key requi
 
 ## Closeout status
 
-The independent P3 correction pass is verified offline. **The judge-ready
-closeout is not complete.** No live send, live model run, live self-test, GitHub
-integration push, publication, public judge-link verification or genuine backup
-recording was performed in this pass. Work is on a task fork, not the live app.
+The independent P3 correction pass is verified offline. At Rachel's request,
+it is handed to Aman for combined integration; see
+[the Git and integration handoff](P3_INTEGRATION_HANDOFF.md).
+**The judge-ready closeout is not complete.** No live send, live model run,
+live self-test, GitHub main integration push, publication, public judge-link
+verification or genuine backup recording was performed in this pass. A handoff
+branch is not the live app.
 
 The latest fetched GitHub main has the same application code as the starting
-checkout; its additional changes are documentation. The local attempt-recording
+checkout; its additional documentation is now included in the handoff history.
+The attempt-recording
 handoff remains a proposal. Aman and Jay must still supply the approved working
 handoffs and agree the attempt/context interface before their files or the
 frozen shared JSON contract are changed.
