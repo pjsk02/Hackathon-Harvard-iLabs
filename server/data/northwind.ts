@@ -25,4 +25,17 @@ const SALARIES = [
 export const DATA = Object.freeze({
   read_regional_margins: () => MARGINS.map((r) => ({ ...r })),
   read_employee_salaries: () => SALARIES.map((r) => ({ ...r })),
+  read_revenue: () => MARGINS.map(({ region, revenueM }) => ({ region, revenueUsd: revenueM * 1_000_000, period: "Q3 2026" })),
+  read_operating_expenses: () => [
+    { category: "Facilities", expenseUsd: 8_200_000 }, { category: "Logistics", expenseUsd: 6_400_000 },
+    { category: "Technology", expenseUsd: 3_100_000 },
+  ],
+  read_customer_analytics: () => [
+    { segment: "Retail", customers: 12400, retentionPct: 84 },
+    { segment: "Business", customers: 820, retentionPct: 92 },
+  ],
+  read_risk_compliance: () => [
+    { control: "Vendor review", status: "Needs review", openFindings: 3 },
+    { control: "Access review", status: "Current", openFindings: 0 },
+  ],
 } as const);

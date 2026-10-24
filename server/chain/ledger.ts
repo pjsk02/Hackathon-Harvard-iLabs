@@ -4,6 +4,8 @@ import { CHAIN_ID, EXPLORER_TX_URL } from "../../shared/contract";
 import type { ChainReference, LookupResult } from "./evidence";
 import { ChainError, RpcWriteError, createRpcClient, remaining, type RpcCall } from "./rpc";
 import { chainDeadline } from "./deadline";
+import type { AnchorOptions, RecordingResult } from "./recording-types";
+import { journaledRpc, settleJournal } from "../storage/broadcast";
 export type { ChainReference, LookupResult } from "./evidence";
 
 type Block = { number: string; hash: string; timestamp: string };
@@ -42,8 +44,9 @@ function configuredWallet(): Wallet {
 export function createMonadLedger(rpc: RpcCall, wallet: () => Wallet = configuredWallet, limits: LedgerLimits = {}) {
   const cache = new Map<string, LookupResult>();
   const anchors = new Map<string, Anchor>();
+  const failed = new Map<string, string>();
   let queue: Promise<unknown> = Promise.resolve();
-  let pending: { hash: string; raw: string; digest: string; mayBeSubmitted: boolean } | null = null;
+  let pending: { hash: string; raw: string; digest: string; mayBeSubmitted: boolean; beforeSend?: () => void } | null = null;
   let reservedTransactions = 0;
   const operationMs = limits.operationMs ?? OPERATION_MS;
 
@@ -114,7 +117,9 @@ export function createMonadLedger(rpc: RpcCall, wallet: () => Wallet = configure
       if (evidence) {
         // A finalized failed transaction consumes its nonce too.
         pending = null;
-        const result = makeAnchor(current.hash, evidence, current.digest);
+        let result: Anchor;
+        try { result = makeAnchor(current.hash, evidence, current.digest); }
+        catch (error) { failed.set(current.digest, current.hash); throw error; }
         anchors.set(current.digest, result);
         return { ...result };
       }
@@ -125,6 +130,18 @@ export function createMonadLedger(rpc: RpcCall, wallet: () => Wallet = configure
 
   async function broadcast(deadline: number) {
     const current = pending!;
+    // These fences cover rebroadcasts too. They run outside the RPC catch, so
+    // cancellation before submission cannot be mistaken for uncertain delivery.
+    try {
+      remaining(deadline);
+      current.beforeSend?.();
+      const limit = transactionLimit();
+      if (limit === 0) throw new ChainError("Real Monad transactions are paused until a test limit is approved.");
+      if (reservedTransactions > limit) throw new ChainError("The approved Monad test transaction allowance is exhausted.");
+    } catch (error) {
+      if (!current.mayBeSubmitted) { pending = null; reservedTransactions--; }
+      throw error;
+    }
     try {
       const hash = await rpc<string>("eth_sendRawTransaction", [current.raw], deadline);
       if (hash.toLowerCase() !== current.hash.toLowerCase()) throw new Error("Unexpected transaction hash");
@@ -143,17 +160,19 @@ export function createMonadLedger(rpc: RpcCall, wallet: () => Wallet = configure
     }
   }
 
-  function anchor(digest: string): Promise<Anchor> {
+  function anchor(digest: string, options: AnchorOptions = {}): Promise<Anchor> {
     if (!isHexString(digest, 32)) return Promise.reject(new ChainError("A stamp requires a 32-byte permission fingerprint."));
     const deadline = chainDeadline(operationMs); // includes queue wait and the enclosing HTTP operation
     const key = digest.toLowerCase();
     const job = queue.then(async () => {
       remaining(deadline);
+      options.beforeSend?.();
       const known = anchors.get(key);
       if (known) return { ...known };
       if (pending) {
         // Re-broadcast only the exact same signed bytes, never silently reuse its nonce.
-        await broadcast(deadline);
+        const seen = await readLookup(pending.hash, deadline);
+        if (!seen && options.rebroadcast !== false) await broadcast(deadline);
         await settle(deadline);
         const recovered = anchors.get(key);
         if (recovered) return { ...recovered };
@@ -167,16 +186,22 @@ export function createMonadLedger(rpc: RpcCall, wallet: () => Wallet = configure
       if (gasPrice <= 0n || gasPrice > (limits.maxGasPriceWei ?? MAX_GAS_PRICE)) {
         throw new ChainError("The Monad gas price exceeds the demo spending limit. No new stamp was sent.");
       }
+      options.beforeSend?.();
+      if (transactionLimit() === 0 || reservedTransactions >= transactionLimit()) {
+        throw new ChainError("The approved Monad test transaction allowance is paused or exhausted.");
+      }
       const raw = await signer.signTransaction({
         type: 0, chainId: CHAIN_ID, to: signer.address, value: 0n,
         data: key, gasLimit: GAS_LIMIT, gasPrice, nonce,
       });
-      pending = { hash: keccak256(raw), raw, digest: key, mayBeSubmitted: false };
+      pending = { hash: keccak256(raw), raw, digest: key, mayBeSubmitted: false, beforeSend: options.beforeSend };
+      failed.delete(key);
       reservedTransactions++;
       try {
         await broadcast(deadline);
         return await settle(deadline);
       } catch (error) {
+        options.beforeSend?.();
         throw new ChainError(
           error instanceof ChainError ? error.message : "The stamp is awaiting verification.",
           error instanceof ChainError ? (error.txHash ?? pending?.hash) : pending?.hash,
@@ -187,8 +212,60 @@ export function createMonadLedger(rpc: RpcCall, wallet: () => Wallet = configure
     return job;
   }
 
+  /** Attempt writes are submitted once. Unknown/failed writes are never replayed here. */
+  async function recordFingerprint(digest: string, beforeSend: () => void): Promise<RecordingResult> {
+    beforeSend();
+    const key = digest.toLowerCase();
+    if (failed.has(key)) {
+      return { status: "failed", anchor: null, txHash: failed.get(key)!, detail: "The recorded transaction failed verification. No replacement was sent." };
+    }
+    try {
+      const anchorResult = await anchor(digest, { beforeSend, rebroadcast: false });
+      return { status: "recorded", anchor: anchorResult, txHash: anchorResult.txHash };
+    } catch (error) {
+      beforeSend(); // Propagate a stale generation; do not update a later session.
+      if (failed.has(key)) {
+        return { status: "failed", anchor: null, txHash: failed.get(key)!, detail: "The finalized transaction failed verification. No replacement was sent." };
+      }
+      if (pending?.digest === key && pending.mayBeSubmitted) {
+        return { status: "pending", anchor: null, txHash: pending.hash, detail: "Submission or finality is unconfirmed. Recheck without sending another transaction." };
+      }
+      if (pending && pending.digest !== key) {
+        return { status: "failed", anchor: null, txHash: null, detail: "The record was not submitted because another transaction is unconfirmed." };
+      }
+      return {
+        status: "failed", anchor: null, txHash: null,
+        detail: error instanceof ChainError ? error.message : "The attempt was not submitted. No replacement was sent.",
+      };
+    }
+  }
+
+  /** One bounded readback, never signing or broadcasting, even with zero allowance. */
+  function reconcileFingerprint(digest: string, hash: string): Promise<RecordingResult> {
+    const deadline = chainDeadline(operationMs);
+    const key = digest.toLowerCase();
+    const job = queue.then(async (): Promise<RecordingResult> => {
+      if (!isHexString(digest, 32) || !isHexString(hash, 32)) throw new ChainError("Invalid record identifiers.");
+      const evidence = await readLookup(hash, deadline);
+      if (!evidence) return { status: "pending", anchor: null, txHash: hash, detail: "Finalized evidence is not available yet. No transaction was sent." };
+      if (pending?.hash.toLowerCase() === hash.toLowerCase() && pending.digest === key) pending = null;
+      try {
+        const result = makeAnchor(hash.toLowerCase(), evidence, key);
+        anchors.set(key, result);
+        return { status: "recorded", anchor: result, txHash: result.txHash };
+      } catch {
+        failed.set(key, hash);
+        return { status: "failed", anchor: null, txHash: hash, detail: "The finalized transaction does not verify this attempt. No replacement was sent." };
+      }
+    });
+    queue = job.catch(() => undefined);
+    return job;
+  }
+
   return {
     anchor,
+    recordFingerprint,
+    reconcileFingerprint,
     lookup: (txHash: string) => readLookup(txHash, chainDeadline(operationMs)),
     latestReference: () => finalizedBlock(),
     latestTimestamp: async () => (await finalizedBlock()).blockTimestamp,
@@ -202,7 +279,22 @@ const rpc = createRpcClient(() => [
   "https://rpc-testnet.monadinfra.com",
   "https://rpc.ankr.com/monad_testnet",
 ]);
-const ledger = createMonadLedger(rpc, configuredWallet, {
+const ledger = createMonadLedger(journaledRpc(rpc), configuredWallet, {
   maxTransactions: () => Number(process.env.MONAD_MAX_TRANSACTIONS ?? "0"),
 });
-export const { anchor, lookup, latestReference, latestTimestamp, budgetStatus } = ledger;
+export const { lookup, latestReference, latestTimestamp, budgetStatus } = ledger;
+export async function anchor(digest: string, options?: AnchorOptions) {
+  const result = await ledger.anchor(digest, options);
+  await settleJournal(result.txHash, "recorded");
+  return result;
+}
+export async function recordFingerprint(digest: string, beforeSend: () => void) {
+  const result = await ledger.recordFingerprint(digest, beforeSend);
+  if (result.status !== "pending" && result.txHash) await settleJournal(result.txHash, result.status);
+  return result;
+}
+export async function reconcileFingerprint(digest: string, hash: string) {
+  const result = await ledger.reconcileFingerprint(digest, hash);
+  if (result.status !== "pending") await settleJournal(hash, result.status);
+  return result;
+}

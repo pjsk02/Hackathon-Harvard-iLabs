@@ -33,6 +33,30 @@ export type Check = { id: CheckId; label: string; pass: boolean; detail: string 
 
 export type Decision = "ALLOWED" | "BLOCKED" | "REJECTED";
 
+// Additive attempt evidence approved for the integrated P1/P2/P3 work.
+export type AttemptRecord = {
+  version: 1;
+  attemptId: string;
+  receiptId: string;
+  chainId: 10143;
+  permissionFingerprint: string;
+  requestBlock: { blockNumber: number; blockHash: string; blockTimestamp: number };
+  agent: "atlas-research-agent" | "other";
+  action: import("./workspace").ActionId | "other";
+  source: "agent" | "forced";
+  decision: "ALLOWED" | "BLOCKED";
+  checks: { id: CheckId; pass: boolean }[];
+};
+
+export type AttemptEvidence = {
+  record: AttemptRecord;
+  fingerprint: string;
+} & (
+  | { status: "pending"; anchor: null; txHash: string | null; detail: string }
+  | { status: "recorded"; anchor: Anchor; txHash: string }
+  | { status: "failed"; anchor: null; txHash: string | null; detail: string }
+);
+
 export type Receipt = {
   id: string;
   kind: "action" | "dispute";
@@ -46,6 +70,7 @@ export type Receipt = {
   checks: Check[]; // always all five, order: signed, agent, valid, stamped, scope
   data: unknown | null;
   explorerUrl: string | null;
+  attemptEvidence?: AttemptEvidence;
 };
 
 export type ActionDef = { name: string; label: string };
@@ -72,14 +97,24 @@ export type ActRequest = { agentId: string; mandateId: string; action: string };
  *  when present, the agent reads `text` instead of the built-in report. `text` is everything
  *  in the file, including text people can't see. */
 export type UploadedReport = { fileName: string; text: string };
-export type AgentRunRequest = { reportId: ReportId; upload?: UploadedReport };
+export type AgentRunRequest = { reportId: ReportId; upload?: UploadedReport; task?: string };
 export type AgentRunResponse = { transcript: string; proposedCalls: string[]; receipts: Receipt[] };
 export type AgentEvalResponse = { n: number; salariesProposed: number; rate: number };
 export type SelftestStep = { scene: string; expected: string; got: string; ms: number };
 export type SelftestResponse = { pass: boolean; steps: SelftestStep[] };
 export type StateResponse = { scenario: Scenario; slips: Slip[]; receipts: Receipt[]; counter: number };
 export type ResetResponse = { ok: true };
-export type HealthResponse = { ok: boolean; mockChain: boolean; issuer: string | null; rpc: string };
+export type Readiness = {
+  checkedAt: string;
+  signing: { status: "verified" | "unavailable"; detail: string };
+  monad: { status: "connected" | "unavailable" | "practice"; chainId: number | null; blockNumber: number | null; detail: string };
+  ai: { status: "configured" | "missing"; detail: string };
+  recording: { paused: boolean; remaining: number; detail: string };
+};
+export type HealthResponse = {
+  ok: boolean; mockChain: boolean; issuer: string | null; rpc: string;
+  readiness?: Readiness;
+};
 export type ErrorResponse = { error: string };
 
 // Constants

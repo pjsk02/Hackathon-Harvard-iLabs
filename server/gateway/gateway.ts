@@ -4,6 +4,11 @@
 // This is the ONLY file allowed to import server/data.
 import type { ActRequest, Receipt } from "../../shared/contract";
 import { DATA } from "../data/northwind";
+export const readEvaluationData = (action: string): unknown => {
+  const fn = Object.hasOwn(DATA, action) ? DATA[action as keyof typeof DATA] : undefined;
+  if (!fn) throw httpError(400, "This action has no approved data function.");
+  return fn();
+};
 import { latestReference, type ChainReference } from "../chain";
 import { httpError } from "../http";
 import * as state from "../state";

@@ -8,7 +8,6 @@ import { demoPresentation } from "./demo-presentation";
 
 const transport = createRequester({
   storage: typeof window !== "undefined" ? (() => { try { return window.sessionStorage; } catch { return undefined; } })() : undefined,
-  getSessionId: () => demoPresentation.getSnapshot().sessionId,
 });
 const call = transport.request;
 
@@ -19,14 +18,6 @@ export const api = {
   state: async () => {
     const result = await call<StateResponse>("/api/state", {
       validate: isState,
-      onSuccess: (state, response) => {
-        const sessionId = response.headers.get("X-Envoi-Session");
-        if (!sessionId || !/^[a-z0-9-]{16,80}$/i.test(sessionId)) {
-          throw new ApiError("The current session could not be identified; check status before submitting.");
-        }
-        demoPresentation.acceptState(sessionId, state, response.headers.get("X-Envoi-Operation") === "busy");
-        if (state.slips.some((s) => s.label === "Original" && hasRecordedPermission(s))) transport.confirmGrant(sessionId);
-      },
     });
     return result;
   },
@@ -52,6 +43,10 @@ export const api = {
     demoPresentation.showReceipts([receipt]);
     return receipt;
   },
+  reconcile: (attemptId: string, receiptId: string) => call<Receipt>(`/api/attempts/${encodeURIComponent(attemptId)}/reconcile`, {
+    method: "POST", mutates: false, label: "Read attempt status",
+    validate: (value): value is Receipt => isReceipt(value) && value.id === receiptId,
+  }),
   dispute: async () => {
     const receipt = await call<Receipt>("/api/dispute", { method: "POST", label: "Dispute", validate: isReceipt });
     demoPresentation.showReceipts([receipt]);
@@ -62,8 +57,8 @@ export const api = {
     validate: (value): value is { ok: true } => !!value && typeof value === "object" && "ok" in value && value.ok === true,
   }),
   health: () => call<HealthResponse>("/api/health", { validate: isHealth }),
-  // Despite its GET method, the team self-test can create real permissions/records.
-  selftest: () => call<SelftestResponse>("/api/selftest", { mutates: true, label: "Self-test", validate: isSelftest }),
+  // Explicitly manual, guarded write; GET /api/selftest is read-only.
+  selftest: () => call<SelftestResponse>("/api/selftest", { method: "POST", label: "Self-test", validate: isSelftest }),
 };
 
 export type Api = typeof api;

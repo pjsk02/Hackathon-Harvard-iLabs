@@ -8,18 +8,20 @@ import { stampMatchesRequest, type ChainReference, type LookupResult, type Origi
 import { ChainError, remaining } from "./rpc";
 import { buildMandate, digestOf, signMandate } from "./slip";
 import { mondayNineNY } from "./time";
+import type { AnchorOptions } from "./recording-types";
 
 export type PermissionState = Pick<typeof AppState, "getSlip" | "addSlip" | "getReceipt" | "addReceipt" | "listReceipts"> & {
   // P3 owns these optional integration hooks. Legacy reference guards below cannot
   // detect Reset while an initially empty session's first issuance is in flight.
   getGeneration?: () => number;
+  assertCurrentGeneration?: (generation: number) => void;
   getRequestContext?: (receiptId: string) => OriginalRequestContext | undefined;
 };
 
 type Dependencies = {
   state: PermissionState;
   chain: {
-    anchor: (digest: string) => Promise<Anchor>;
+    anchor: (digest: string, options?: AnchorOptions) => Promise<Anchor>;
     lookup: (hash: string) => Promise<LookupResult | null>;
     latestReference: () => Promise<ChainReference>;
   };
@@ -60,12 +62,13 @@ export function createPermissionService({ state, chain, evaluate, sign = signMan
     generation = current;
   }
 
-  function assertSession(op: Operation, deadline: number) {
-    remaining(deadline);
+  function assertSession(op: Operation, deadline?: number) {
+    if (deadline !== undefined) remaining(deadline);
     if (op.generation !== state.getGeneration?.()) throw httpError(409, "The session changed. Start with a new permission slip.");
+    if (op.generation !== undefined) state.assertCurrentGeneration?.(op.generation);
   }
 
-  function assertOriginal(deadline: number) {
+  function assertOriginal(deadline?: number) {
     if (!original?.published || !original.slip) throw httpError(409, "Sign the permission slip first.");
     assertSession(original, deadline);
     if (state.getSlip(MANDATE_ID) !== original.published || JSON.stringify(original.published) !== original.publishedJson) {
@@ -74,12 +77,18 @@ export function createPermissionService({ state, chain, evaluate, sign = signMan
     return original.slip; // Private signed snapshot, never the mutable state object.
   }
 
-  function assertBlocked(op: DisputeOperation, deadline: number) {
+  function assertBlocked(op: DisputeOperation, deadline?: number) {
     assertSession(op, deadline);
     assertOriginal(deadline);
-    if (state.getReceipt(op.blocked.id) !== op.blockedReference || JSON.stringify(op.blockedReference) !== op.blockedJson) {
+    if (state.getReceipt(op.blocked.id) !== op.blockedReference || decisionJson(op.blockedReference) !== op.blockedJson) {
       throw httpError(409, "The original request changed. Run the hidden note scene again.");
     }
+  }
+
+  // Recording status can change independently; the original authorization cannot.
+  function decisionJson(receipt: Receipt) {
+    const { attemptEvidence: _audit, ...decision } = receipt;
+    return JSON.stringify(decision);
   }
 
   async function prepared(op: Operation, label: Slip["label"], deadline: number) {
@@ -130,7 +139,7 @@ export function createPermissionService({ state, chain, evaluate, sign = signMan
       }
       const slip = await prepared(op, "Original", deadline);
       assertSession(op, deadline);
-      if (!slip.anchor) slip.anchor = await chain.anchor(slip.digest);
+      if (!slip.anchor) slip.anchor = await chain.anchor(slip.digest, { beforeSend: () => assertSession(op) });
       assertSession(op, deadline);
       if (state.getSlip(MANDATE_ID)) throw httpError(409, "A different permission was published. Reset before continuing.");
       op.published = state.addSlip(structuredClone(slip));
@@ -161,7 +170,7 @@ export function createPermissionService({ state, chain, evaluate, sign = signMan
           digestOf(context.originalSlip.mandate) !== source.digest || context.originalSlip.signature !== source.signature
         )) throw httpError(409, "The original request evidence does not match this permission.");
         dispute = {
-          generation, blocked: structuredClone(blocked), blockedReference: blocked, blockedJson: JSON.stringify(blocked),
+          generation, blocked: structuredClone(blocked), blockedReference: blocked, blockedJson: decisionJson(blocked),
           context: context ? structuredClone(context) : undefined,
         };
       }
@@ -192,7 +201,7 @@ export function createPermissionService({ state, chain, evaluate, sign = signMan
           if (op.context ? now.blockNumber > op.context.requestBlock.blockNumber : now.blockTimestamp > op.blocked.actionTime) break;
           await new Promise((resolve) => setTimeout(resolve, Math.min(200, remaining(deadline))));
         }
-        amended.anchor = await chain.anchor(amended.digest);
+        amended.anchor = await chain.anchor(amended.digest, { beforeSend: () => assertBlocked(op) });
       }
       assertBlocked(op, deadline);
       // Establish real evidence independently, rather than turning P2's RPC-error

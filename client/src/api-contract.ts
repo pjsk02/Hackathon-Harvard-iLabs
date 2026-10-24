@@ -1,5 +1,6 @@
 // Defensive shape checks at the browser boundary, not proof of chain validity.
 import type { AgentRunResponse, HealthResponse, Receipt, SelftestResponse, Slip, StateResponse } from "@shared/contract";
+import { isReadiness } from "./health-status";
 
 const record = (value: unknown): value is Record<string, any> => !!value && typeof value === "object" && !Array.isArray(value);
 const text = (value: unknown): value is string => typeof value === "string";
@@ -50,7 +51,8 @@ export function isState(value: unknown): value is StateResponse {
 
 export const isHealth = (value: unknown): value is HealthResponse =>
   record(value) && typeof value.ok === "boolean" && typeof value.mockChain === "boolean" &&
-  (value.issuer === null || text(value.issuer)) && text(value.rpc);
+  (value.issuer === null || text(value.issuer)) && text(value.rpc) &&
+  (!Object.hasOwn(value, "readiness") || isReadiness(value.readiness));
 
 export const isRun = (value: unknown): value is AgentRunResponse =>
   record(value) && text(value.transcript) && strings(value.proposedCalls) &&

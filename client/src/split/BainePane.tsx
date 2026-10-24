@@ -60,11 +60,11 @@ export default function BainePane({ feed, preview, attachment, previewParts, can
           }}
         />
         <button className="attach" onClick={() => picker.current?.click()} disabled={!canUpload} title={COPY.upload.title} aria-label={COPY.upload.title}>
-          <AttachmentIcon /> <span>Upload</span>
+          <AttachmentIcon />
         </button>
         <button onClick={onSend} disabled={!canSend} title={!canSend ? sendReason : undefined}>{COPY.send}</button>
       </div>
-      <a className="sample-link" href={COPY.upload.sampleHref} download>{COPY.upload.sample}</a>
+      <a className="sample-link" href="/samples/JT-Morgan-Q3-Data-Request.docx" download>{COPY.upload.sample}</a>
 
       {preview !== "closed" && (
         <AttachmentPreview fileName={attachment.fileName} parts={previewParts} revealed={preview === "revealed"} onClose={onClosePreview} onToggleHidden={onToggleHidden} busy={busy} />
@@ -97,8 +97,7 @@ function FeedRow({ item }: { item: FeedItem }) {
       return (
         <div className={`bubble bubble-out ${tone}`}>
           <div className="bubble-route">
-            {item.forced ? "FORCED REQUEST" : AGENT.toUpperCase()} → {CLIENT.toUpperCase()}
-            {item.forced && <span className="tag">{COPY.forced}</span>}
+            {item.forced ? "MANUAL REQUEST" : AGENT.toUpperCase()} → {CLIENT.toUpperCase()}
           </div>
           <p className="bubble-quote">{requestText(item.action)}</p>
           {item.why && <p className="bubble-why">{COPY.why}</p>}

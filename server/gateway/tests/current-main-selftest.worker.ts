@@ -11,7 +11,6 @@ import * as chain from "../../chain";
 import { createPermissionService } from "../../chain/permission-service";
 import { act, evaluate } from "../gateway";
 import { createSelftestRouter } from "../../routes/selftest";
-import { captureResetGeneration } from "../../routes/state";
 import { errorHandler, httpError } from "../../http";
 import * as state from "../../state";
 import { withTestApp } from "./reset-fixtures";
@@ -24,8 +23,11 @@ assert.equal(chain.isMockChain(), true);
 process.env.ISSUER_PRIVATE_KEY = Wallet.createRandom().privateKey; // Unfunded, memory only.
 
 const counts = { anchors: 0, resets: 0, actions: 0, closed: 0 };
+// Exercise the legacy time-based compatibility API, which never records request
+// contexts. Persistent workspace evidence has its own integrated test suite.
+const { getRequestContext: _persistentContext, ...legacyState } = state;
 const permissions = createPermissionService({
-  state, evaluate,
+  state: legacyState, evaluate,
   chain: {
     latestReference: chain.latestReference, lookup: chain.lookup,
     anchor: async (digest) => { counts.anchors++; return chain.anchor(digest); },
@@ -76,7 +78,8 @@ const router = createSelftestRouter({
   },
 });
 const app = express();
-app.use("/api", captureResetGeneration);
+// This isolated fixture owns reset and captures its new generation in within().
+// A production HTTP generation context must not span that fixture-local reset.
 app.use(router, errorHandler);
 const runs: {
   body: SelftestResponse; mode: string | null; ms: number; generation: number;
