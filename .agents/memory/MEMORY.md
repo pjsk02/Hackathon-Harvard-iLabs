@@ -1,1 +1,2 @@
 - [Envoi team roles and integrations](envoi-team.md) — user is P3 (frontend); Replit-managed Anthropic integration unavailable here
+- [Vite middleware quirks](vite-middleware.md) — don't pass `root` to createServer (overrides client root → 404); prefer server.ws over deprecated hmr.server.
