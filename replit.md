@@ -2,6 +2,8 @@
 
 One Express process serving the API and a Vite React client. In-memory state, no database.
 Spec: `ENVOI_BUILD_SPEC.md`. Project rules and file ownership: `.agents/skills/envoi-contract/SKILL.md`.
+- P3 build plan (UI scope, what the UI expects from P1/P2 routes): [docs/P3_BUILD_PLAN.md](docs/P3_BUILD_PLAN.md)
+- P3 frontend prompt (design system, copy deck, layout): [docs/P3_FRONTEND_PROMPT.md](docs/P3_FRONTEND_PROMPT.md)
 
 ## Run
 - Dev: workflow "Start application" runs `npm run dev` (tsx + Vite middleware on port 5000).
