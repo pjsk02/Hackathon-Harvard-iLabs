@@ -16,6 +16,9 @@ export function getResetGeneration(): number {
   return resetGeneration;
 }
 
+// P1's permission-service consumes this name; both getters share one counter.
+export const getGeneration = getResetGeneration;
+
 export function isCurrentGeneration(expected: number): boolean {
   return expected === resetGeneration;
 }

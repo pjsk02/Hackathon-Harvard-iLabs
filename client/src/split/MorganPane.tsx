@@ -2,6 +2,8 @@
 // After: only the current request — what Atlas asks for, checks, one verdict.
 import { useRef } from "react";
 import type { Receipt } from "@shared/contract";
+import RequestFeedback, { type ConnectionStatus } from "../RequestFeedback";
+import type { PendingAction } from "../request";
 import { COPY, itemLabel, shortLabel } from "../labels";
 import { evidenceChecks, profitabilityRows } from "./evidence";
 import type { Stage } from "./types";
@@ -15,9 +17,22 @@ type Props = {
   stage: Stage | null;
   error: string | null;
   allowedReceipt?: Receipt | null;
+  connection?: ConnectionStatus;
+  pending?: PendingAction | null;
+  onRecheck?: () => void;
+  rechecking?: boolean;
+  busy?: boolean;
 };
 
-export default function MorganPane({ granted, granting, canGrant, onGrant, stage, error, allowedReceipt }: Props) {
+const defaultConnection: ConnectionStatus = {
+  state: "unverified",
+  message: "Signing, Monad and AI have not been verified. Open pre-flight for details.",
+};
+
+export default function MorganPane({
+  granted, granting, canGrant, onGrant, stage, error, allowedReceipt,
+  connection = defaultConnection, pending = null, onRecheck, rechecking = false, busy = false,
+}: Props) {
   const previous = useRef<Stage | null>(null);
   if (!granted) previous.current = null;
   if (stage?.phase === "done" && stage.receipt) previous.current = stage;
@@ -32,8 +47,10 @@ export default function MorganPane({ granted, granting, canGrant, onGrant, stage
       </h2>
 
       <div className="client-body">
-        {error && <p className="error" role="alert">{error}</p>}
-        {!granted ? <GrantPanel granting={granting} canGrant={canGrant} onGrant={onGrant} />
+        <RequestFeedback connection={connection} pending={pending} error={error}
+          onRecheck={onRecheck ?? (() => {})} rechecking={rechecking}
+          busy={busy || granting || !onRecheck} />
+        {!granted ? <GrantPanel granting={granting || pending?.phase === "waiting"} canGrant={canGrant && !pending && !busy && !rechecking} onGrant={onGrant} />
           : visibleStage ? <Current stage={visibleStage} />
           : <p className="empty">{COPY.empty.client}</p>}
         {granted && returned?.decision === "ALLOWED" && <AllowedTable receipt={returned} />}
@@ -53,7 +70,6 @@ function GrantPanel({ granting, canGrant, onGrant }: { granting: boolean; canGra
       <button className="primary" onClick={onGrant} disabled={!canGrant || granting}>
         {granting ? COPY.grant.busy : COPY.grant.button}
       </button>
-      {granting && <span role="status">{COPY.grant.busy}</span>}
     </div>
   );
 }

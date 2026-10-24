@@ -1,11 +1,12 @@
 // Classic one-screen view: the fallback layout. Press V or open /?view=classic.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Receipt, ReportId, Slip, StateResponse } from "@shared/contract";
 import { AGENT_ID, MANDATE_ID } from "@shared/contract";
 import { actionLabel } from "@shared/scenarios";
 import { api } from "../api";
 import { COPY } from "../labels";
 import { recordedAnchor } from "../split/evidence";
+import RequestFeedback, { type ConnectionStatus } from "../RequestFeedback";
 
 const short = (h: string) => (h.length > 12 ? `${h.slice(0, 6)}…${h.slice(-4)}` : h);
 const time = (sec: number) => new Date(sec * 1000).toLocaleTimeString();
@@ -21,18 +22,36 @@ export default function ClassicApp() {
   const [examples, setExamples] = useState({ clean: false, poisoned: false });
   const [resetArmed, setResetArmed] = useState(false);
   const operation = useRef(false);
+  const pending = useSyncExternalStore(api.subscribeToPending, api.pendingAction, api.pendingAction);
+  const [connection, setConnection] = useState<ConnectionStatus>({ state: "checking", message: "Reading server status…" });
+  const [checking, setChecking] = useState(false);
+  const locked = !!busy || checking || pending?.phase === "waiting";
 
   const refresh = useCallback(async () => {
     try {
       setData(await api.state());
     } catch (e) {
-      setError((e as Error).message);
+      setError((previous) => previous ?? (e as Error).message);
     }
   }, []);
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  const checkStatus = useCallback(async () => {
+    if (operation.current) return;
+    operation.current = true;
+    setChecking(true);
+    setError(null);
+    const [state, health] = await Promise.allSettled([api.state(), api.health()]);
+    if (state.status === "fulfilled") setData(state.value);
+    else setError((state.reason as Error).message);
+    setConnection(health.status === "fulfilled" && health.value.ok && !health.value.mockChain && state.status === "fulfilled"
+      ? { state: "unverified", message: "Server responded; signing and the Monad connection are not yet verified." }
+      : { state: "unavailable", message: "The live demo is unavailable; check server status before submitting." });
+    if (health.status === "rejected") setError((previous) => previous ?? (health.reason as Error).message);
+    setChecking(false);
+    operation.current = false;
+  }, []);
+
+  useEffect(() => { void checkStatus(); }, [checkStatus]);
 
   async function run(label: string, fn: () => Promise<void>) {
     if (operation.current) return;
@@ -117,11 +136,12 @@ export default function ClassicApp() {
     { key: "5", label: "Force salary request", onClick: actions.force, enabled: !!original, why: "Sign the slip first" },
     { key: "6", label: "Replay the dispute", onClick: actions.dispute, enabled: hasBlocked && !amended, why: amended ? "Already disputed" : "Block a request first" },
     { key: "0", label: resetArmed ? "Press 0 again" : "Reset", onClick: actions.reset, enabled: true },
-  ];
+  ].map((button) => ["1", "2", "3", "5", "6"].includes(button.key) && (pending || connection.state !== "unverified")
+    ? { ...button, enabled: false, why: "Check server and action status first" } : button);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (busy || e.metaKey || e.ctrlKey || e.altKey || e.repeat || e.defaultPrevented) return;
+      if (locked || e.metaKey || e.ctrlKey || e.altKey || e.repeat || e.defaultPrevented) return;
       if (e.target instanceof HTMLElement && e.target.closest("input, textarea, select, [contenteditable='true']")) return;
       const b = buttons.find((x) => x.key === e.key.toLowerCase());
       if (b?.enabled) { e.preventDefault(); b.onClick(); }
@@ -130,13 +150,15 @@ export default function ClassicApp() {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  if (!scenario) return <div className="loading">{error ?? "Loading…"}</div>;
+  if (!scenario) return <main className="preflight"><h1>Envoi</h1>
+    <RequestFeedback connection={connection} pending={pending} error={error} onRecheck={() => { void checkStatus(); }} rechecking={checking} busy={!!busy} />
+  </main>;
 
   const report = scenario.reports[activeReport];
   const ordered = [...lastRun].sort((a, b) => Number(a.decision === "ALLOWED") - Number(b.decision === "ALLOWED"));
 
   return (
-    <div className="app" data-demo-busy={!!busy}>
+    <div className="app" data-demo-busy={locked}>
       <header className="header">
         <div className="brand">
           <img className="logo" src="/envoi-logo.png" alt="" />
@@ -177,7 +199,7 @@ export default function ClassicApp() {
               if (!m) return <p key={i}>{para}</p>;
               return revealHidden ? (
                 <div key={i} className="hidden-note revealed">
-                  <div className="mono small">HIDDEN NOTE · invisible to people, read by the AI</div>
+                  <div className="mono small">HIDDEN TEXT · included in the report</div>
                   <p>{m[1]}</p>
                 </div>
               ) : <p key={i} className="hidden-note">{m[1]}</p>;
@@ -187,8 +209,8 @@ export default function ClassicApp() {
 
         <section className="col">
           <h2>The bouncer</h2>
+          <RequestFeedback connection={connection} pending={pending} error={error} onRecheck={() => { void checkStatus(); }} rechecking={checking} busy={!!busy} />
           {busy ? <p className="muted pulse">{busy}</p>
-            : error ? <p className="bad">{error}</p>
             : ordered.length === 0 ? <p className="muted">The bouncer checks every request against the slip before any data moves.</p>
             : ordered.slice(0, 2).map((r) => <DecisionCard key={r.id} r={r} />)}
         </section>
@@ -208,7 +230,7 @@ export default function ClassicApp() {
 
       <footer className="controls">
         {buttons.map((b) => (
-          <button key={b.key} className="ghost" disabled={!!busy || !b.enabled} title={!b.enabled ? b.why : undefined} onClick={b.onClick}>
+          <button key={b.key} className="ghost" disabled={locked || !b.enabled} title={!b.enabled ? b.why : undefined} onClick={b.onClick}>
             <kbd>{b.key.toUpperCase()}</kbd> {b.label}
           </button>
         ))}

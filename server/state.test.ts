@@ -27,6 +27,14 @@ test("every reset advances the generation, including empty resets", () => {
   assert.equal(state.isCurrentGeneration(before), false);
 });
 
+test("P1's generation getter observes exactly the same reset boundary", () => {
+  const before = state.getGeneration();
+  assert.equal(before, state.getResetGeneration());
+  state.reset();
+  assert.equal(state.getGeneration(), before + 1);
+  assert.equal(state.getGeneration(), state.getResetGeneration());
+});
+
 test("current-generation writes and existing synchronous callers still work", () => {
   const generation = state.getResetGeneration();
   state.addSlip(slip, generation);

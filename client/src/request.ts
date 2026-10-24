@@ -1,0 +1,130 @@
+// Transport only: never retries a write or interprets a lost response as cancellation.
+export type PendingAction = { path: string; label: string; phase: "waiting" | "unconfirmed" };
+export class ApiError extends Error {
+  constructor(message: string, public outcomeUnknown = false) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+type Options<T> = {
+  method?: "GET" | "POST";
+  body?: unknown;
+  label?: string;
+  mutates?: boolean;
+  timeoutMs?: number;
+  validate?: (value: unknown) => value is T;
+};
+type Store = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+const STORAGE_KEY = "envoi-unconfirmed-action";
+const ACTIONS = new Set(["/api/slips", "/api/agent/run", "/api/act", "/api/dispute", "/api/reset", "/api/selftest"]);
+
+export function plainError(message: string): string {
+  return message
+    .replace(/\s*Set MOCK_CHAIN=1 to use the mock\.?/, "")
+    .replace(/\bTransaction:/gi, "Public record:")
+    .replace(/\btransactions\b/gi, "records")
+    .replace(/\btransaction\b/gi, "record")
+    .replace(/\b0x[0-9a-f]{64}\b/gi, (value) => `${value.slice(0, 8)}…${value.slice(-6)}`);
+}
+
+export function createRequester({
+  fetcher = (url, options) => fetch(url, options),
+  storage,
+  readTimeoutMs = 15_000,
+  actionTimeoutMs = 90_000,
+}: {
+  fetcher?: typeof fetch;
+  storage?: Store;
+  readTimeoutMs?: number;
+  actionTimeoutMs?: number;
+} = {}) {
+  let pending: PendingAction | null = null;
+  const listeners = new Set<() => void>();
+  try {
+    const saved = JSON.parse(storage?.getItem(STORAGE_KEY) ?? "null");
+    if (saved && ACTIONS.has(saved.path) && typeof saved.label === "string") {
+      pending = { path: saved.path, label: saved.label.slice(0, 80), phase: "unconfirmed" };
+    }
+  } catch { /* Storage is optional; in-memory request guards still apply. */ }
+
+  function publish(value: PendingAction | null) {
+    pending = value;
+    try {
+      if (value) storage?.setItem(STORAGE_KEY, JSON.stringify(value));
+      else storage?.removeItem(STORAGE_KEY);
+    } catch { /* Some browsers disable session storage. Never retry a request for this. */ }
+    listeners.forEach((listener) => listener());
+  }
+
+  async function request<T>(url: string, options: Options<T> = {}): Promise<T> {
+    const method = options.method ?? "GET";
+    const mutates = options.mutates ?? method === "POST";
+    const previous = pending;
+    if (mutates && pending && !(url === "/api/reset" && pending.phase === "unconfirmed")) {
+      throw new ApiError("An earlier action is not confirmed; check its status before starting another.", true);
+    }
+    const action: PendingAction = { path: url, label: options.label ?? "Action", phase: "waiting" };
+    if (mutates) publish(action);
+    const controller = new AbortController();
+    const timeoutMs = options.timeoutMs ?? (mutates ? actionTimeoutMs : readTimeoutMs);
+    let timer: ReturnType<typeof setTimeout>;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        reject(new ApiError("The server did not answer in time.", mutates));
+        controller.abort();
+      }, timeoutMs);
+    });
+    try {
+      const result = await Promise.race([
+        (async () => {
+          const response = await fetcher(url, {
+            method,
+            headers: options.body === undefined ? undefined : { "Content-Type": "application/json" },
+            body: options.body === undefined ? undefined : JSON.stringify(options.body),
+            signal: controller.signal,
+          });
+          let json: unknown;
+          try {
+            json = await response.json();
+          } catch {
+            throw new ApiError("The server returned an unreadable response.", mutates);
+          }
+          if (!response.ok) {
+            const raw = json && typeof json === "object" && "error" in json && typeof json.error === "string"
+              ? json.error : "The server could not complete the request.";
+            // These explicit setup failures cannot have submitted an action.
+            const notStarted = /not built yet|^ISSUER_PRIVATE_KEY.*(?:not set|missing|invalid)|^Real Monad transactions are paused|^The approved Monad test transaction limit has been reached/i.test(raw);
+            throw new ApiError(plainError(raw), mutates && response.status >= 500 && !notStarted);
+          }
+          if (json === null || typeof json !== "object" || (options.validate && !options.validate(json))) {
+            throw new ApiError("The server returned an incomplete response.", mutates);
+          }
+          return json as T;
+        })(),
+        timeout,
+      ]);
+      if (mutates) publish(null);
+      return result;
+    } catch (cause) {
+      const error = cause instanceof ApiError ? cause : new ApiError("Could not reach the server.", mutates);
+      if (mutates) publish(error.outcomeUnknown ? { ...action, phase: "unconfirmed" } : previous);
+      throw error;
+    } finally {
+      clearTimeout(timer!);
+    }
+  }
+
+  return {
+    request,
+    pendingAction: () => pending,
+    subscribeToPending: (listener: () => void) => {
+      listeners.add(listener);
+      return () => { listeners.delete(listener); };
+    },
+    // Only an authoritative returned permission or confirmed Reset may clear recovery.
+    confirmGrant: () => {
+      if (pending?.path === "/api/slips" && pending.phase === "unconfirmed") publish(null);
+    },
+  };
+}

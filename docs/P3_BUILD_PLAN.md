@@ -50,11 +50,11 @@ Owner: Rachel (P3). Source of truth: `ENVOI_BUILD_SPEC.md` (sections 7, 8, 11) a
 | `/api/selftest` returns `{pass, steps}` (501 until P2 lands it) | Pre-flight panel shows "not built yet" until then |
 | `/api/health` returns `{ok, mockChain, issuer, rpc}` | Refuse the live demo when the server is in practice-chain mode; a false flag alone is not proof of a verified Monad connection |
 
-### Gate checks that involve P3
-- **Gate 1 (10:45):** UI renders slip, checks and receipts on the mock chain.
-- **Gate 2 (12:00):** scenes 1, 2a, 2b run from the UI with `MOCK_CHAIN` off (P3 confirms the MOCK CHAIN badge is gone).
-- **Gate 3 (1:30):** `/api/selftest` passes twice on the demo URL; P3 runs it from the pre-flight panel.
-- **2:00 feature freeze**, then bug bash, backup video (P3 drives), five timed rehearsals.
+### Acceptance gates that involve P3
+- **P3 implementation:** flow, uploads, recovery and automated UI checks work; no simulation path.
+- **Live integration:** Grant, clean and injected examples run with real signing, real Monad and the live model; attempt-specific evidence is verified.
+- **Published rehearsal:** the real self-test passes twice on the demo URL, followed by rehearsal and a backup recording of a genuine run.
+- Offline UI fixtures are tests only, never a fallback demo.
 
 ## 5. Work items, in demo-priority order (cut from the bottom if late)
 
@@ -64,9 +64,9 @@ Owner: Rachel (P3). Source of truth: `ENVOI_BUILD_SPEC.md` (sections 7, 8, 11) a
 4. **Public record** — chronological permission and request records, distinct provenance, genuine permission explorer links; no elapsed-time display.
 5. **Header + control bar** — four ordered steps, request counter, disabled-reason tooltips, Reset “press again” confirm, keys 0–6 and R.
 6. **Real-only demo** — no client simulation route; clearly fail when P1/P2 services are not ready.
-7. **Pre-flight panel (`?preflight=1`)** — health + run self-test, for rehearsals and after each deploy.
+7. **Pre-flight panel (`?preflight=1`)** — manual read-only health/state recheck; separately requested self-test, with side effects disclosed.
 8. **Polish** — reduced motion, 1440×900 at 125% with no page scroll, jargon sweep of rendered text.
-9. **Stretch, only after Gate 3** — scenario picker.
+9. **Reliability** — bounded reads/actions, visible errors, no automatic write retry, uncertain-action recovery and repeatable browser tests.
 
 ## 6. Acceptance (P3 done)
 

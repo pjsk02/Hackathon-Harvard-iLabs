@@ -23,7 +23,7 @@ POST /api/agent/run
 | --- | --- |
 | `server/routes/agent.ts` | If `req.body.upload` is present, validate it (`fileName` string, `text` string, max 60,000 chars, else 400 `{error:"That file is too long."}`) and pass `upload.text` to the agent instead of `scenario.reports[reportId]` |
 | `server/agent/agent.ts` | Replace the stub with the real one-turn Claude call (claude-tool-agent skill). Read the report text given to it. Return a short `transcript` (one or two sentences, it is shown on screen) |
-| System prompt | Use the one in `docs/DEMO_HANDOFF.md` section 2 (Atlas, Baine, JT Morgan) |
+| System prompt | Use the roles and untrusted-document boundary in `docs/DEMO_HANDOFF.md` section 2 (Atlas, Baine, JT Morgan); never present scripted tool calls as live AI |
 | `server/gateway/checks.ts` | Detail text "Not signed by Northwind" → "Not signed by JT Morgan" |
 | Hit rate | Run `/api/agent/eval` on the sample upload text too, target 8/10. Below that, key 5 (Force) carries the scene |
 
@@ -35,14 +35,14 @@ Key: `ANTHROPIC_API_KEY` is being added as a workspace secret by Rachel (no Repl
 | --- | --- |
 | `server/chain/ledger.ts`, `slip.ts` | Real anchor + readback with ethers v6 (monad-anchor and eip712-slip skills) |
 | Secrets | The issuer / funded testnet wallet key (P1 names it), optional `MONAD_RPC_URL` |
-| Switch | Remove `MOCK_CHAIN=1` from the development env when Gate 2 passes |
+| Switch | Keep practice-chain mode off; real sends also require P1's explicit nonzero send allowance |
 | Screen expectations | Explorer URL on every anchor (block numbers link to it); dispute can take several seconds (screen waits); a failed RPC returns the plain-sentence error, which the screen shows in the JT Morgan column |
 
 Your plan (`P1_IMPLEMENTATION_PLAN.md`) proposes block-order evidence and pending/verified/error states. The screen can show those once the extra fields are agreed in `shared/contract.ts`.
 
-### If you record each request (the attempts) on Monad too
+### Required for the requested demo: each attempt's own Monad record
 
-Today only permissions are blocks; a blocked request is a dashed time marker in the Monad column. If every decision gets its own Monad transaction:
+The requested demo includes on-chain attempts. P1's reviewed branch records permissions, not attempts; current request rows remain explicitly labeled application records. To finish:
 
 - Please carry it in an **additive** field on `Receipt`, e.g. `anchor?: Anchor | null` (same shape as the slip's anchor), rather than reusing `receipt.explorerUrl`, which today points at the slip that was checked (the dispute scene depends on that).
 - After the response shape is agreed, the screen can link each attempt to its own record. Rachel does not want an elapsed-time/bracket display; block ordering still matters to the backend decision.
@@ -54,6 +54,7 @@ P3 now exports these functions from `server/state.ts` without changing `shared/c
 
 ```ts
 getResetGeneration(): number
+getGeneration(): number // Compatibility alias consumed by P1's current PermissionState.
 isCurrentGeneration(expected: number): boolean
 assertCurrentGeneration(expected: number): void
 withResetGeneration<T>(expected: number, work: () => T): T
@@ -65,6 +66,6 @@ addReceipt(receipt: NewReceipt, expectedGeneration?: number): Receipt
 - Check `assertCurrentGeneration(generation)` before returning cached/reconciled results, and pass the captured generation on state writes made outside an API request.
 - P3 mounted request-context middleware before every API router. Existing `addSlip`/`addReceipt` calls inherit the starting generation across awaits automatically and reject stale writes with 409 `{error:"The demo was reset; start this action again."}`.
 - Reset increments the generation before clearing memory. It cannot cancel or erase a record already broadcast to Monad; the guard only prevents it from appearing as a new-session result.
-- `npm run test:state` passes nine checks, including a concurrent HTTP reset. The full P1 retry-cache/P2 original-request integration still requires their updated code and tests.
+- `npm run test:state` checks the alias, reset boundaries and a concurrent HTTP reset. The full P1 retry-cache/P2 original-request integration still requires their updated code and tests.
 
-Aman's report of 38 passing offline tests is positive but not a live-integration pass. His updated interfaces were not yet present on fetched `main` when this hook was added; adapt names explicitly together if his proposal differs.
+Aman's `p1/signing-and-dispute-evidence` branch was fetched and its 38 offline tests independently passed on 2026-10-24. It has not been merged into this app. P3 now exposes the exact getter name it consumes. P2's retained request context and block-order evaluation remain unimplemented in current main; see [integration review](P1_INTEGRATION_REVIEW.md).

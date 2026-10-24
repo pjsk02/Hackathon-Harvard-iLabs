@@ -1,11 +1,12 @@
 // Three-column stage: Baine (left) · Monad (middle) · JT Morgan (right).
 // Holds state and the choreography. Every outcome comes from an API response;
 // this file only reveals real results at human speed.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Receipt, ReportId, Slip, StateResponse } from "@shared/contract";
 import { AGENT_ID, MANDATE_ID } from "@shared/contract";
 import { consulting } from "@shared/scenarios";
 import { api } from "../api";
+import RequestFeedback, { type ConnectionStatus } from "../RequestFeedback";
 import { COPY, answerFrom, shownChecks, weekday } from "../labels";
 import BainePane from "./BainePane";
 import ChainColumn from "./ChainColumn";
@@ -43,7 +44,12 @@ export default function SplitApp() {
   const [granting, setGranting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resetArmed, setResetArmed] = useState(false);
-  const [chainUnavailable, setChainUnavailable] = useState(false);
+  const [connection, setConnection] = useState<ConnectionStatus>({ state: "checking", message: "Reading server status…" });
+  const [rechecking, setRechecking] = useState(false);
+  const pending = useSyncExternalStore(api.subscribeToPending, api.pendingAction, api.pendingAction);
+  const chainUnavailable = connection.state !== "unverified";
+  const controlsBusy = busy || rechecking || pending?.phase === "waiting";
+  const canSubmit = !controlsBusy && !pending && !chainUnavailable;
   const operation = useRef(false);
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const token = useRef(0); // bumps on reset so a running choreography stops
@@ -54,30 +60,46 @@ export default function SplitApp() {
       setData(s);
       return s;
     } catch (e) {
-      setError((e as Error).message);
+      setError((previous) => previous ?? (e as Error).message);
       return null;
     }
   }, []);
 
-  useEffect(() => {
-    refresh().then((s) => {
-      if (!s) return;
+  const checkStatus = useCallback(async () => {
+    if (operation.current) return;
+    operation.current = true;
+    setRechecking(true);
+    setError(null);
+    setConnection({ state: "checking", message: "Reading server status…" });
+    const [stateResult, healthResult] = await Promise.allSettled([api.state(), api.health()]);
+    if (stateResult.status === "fulfilled") {
+      const s = stateResult.value;
+      setData(s);
       setRevealed(new Set(s.receipts.map((r) => r.id)));
       if (s.slips.some((slip) => slip.label === "Original")) setActiveStep(2);
       const latest = s.receipts[0];
       if (latest) setStage({ action: latest.action, receipt: latest, phase: "done", checksShown: 5, earlier: null });
-    });
-    api.health().then((h) => {
-      setChainUnavailable(h.mockChain);
-      if (h.mockChain) setError("The server is using a practice chain; connect real Monad before running the demo.");
-    }).catch(() => {
-      setChainUnavailable(true);
-      setError("Could not verify the server configuration; reload before running the demo.");
-    });
+    } else setError((stateResult.reason as Error).message);
+    if (healthResult.status === "rejected" || stateResult.status === "rejected") {
+      setConnection({ state: "unavailable", message: "Could not read the server and demo status; check again before submitting." });
+      if (healthResult.status === "rejected") setError((previous) => previous ?? (healthResult.reason as Error).message);
+    } else if (!healthResult.value.ok || healthResult.value.mockChain) {
+      setConnection({ state: "unavailable", message: healthResult.value.mockChain
+        ? "Practice-chain mode is enabled; the live demo is blocked."
+        : "The server reported a failed health check." });
+    } else {
+      setConnection({ state: "unverified", message: "Server responded; signing and the Monad connection are not yet verified." });
+    }
+    operation.current = false;
+    setRechecking(false);
+  }, []);
+
+  useEffect(() => {
+    void checkStatus();
     return () => {
       if (resetTimer.current) clearTimeout(resetTimer.current);
     };
-  }, [refresh]);
+  }, [checkStatus]);
 
   const push = (item: FeedItem) => setFeed((f) => [...f, item]);
   const patch = (id: string, change: Partial<FeedItem>) =>
@@ -85,7 +107,7 @@ export default function SplitApp() {
 
   /** Wrap a beat: lock the controls, catch the one-sentence error. */
   async function beat(fn: (alive: () => boolean) => Promise<void>) {
-    if (operation.current || chainUnavailable) return;
+    if (operation.current || chainUnavailable || api.pendingAction()) return;
     operation.current = true;
     const mine = token.current;
     const alive = () => token.current === mine;
@@ -270,13 +292,13 @@ export default function SplitApp() {
   };
 
   const keys: { key: string; label: string; run: () => void; enabled: boolean; why?: string }[] = [
-    { key: "1", label: "Grant", run: actions.grant, enabled: !original && !chainUnavailable, why: chainUnavailable ? "Connect real Monad first" : "Already granted" },
-    { key: "2", label: "Clean example", run: () => actions.ask("clean"), enabled: !!original && !chainUnavailable, why: "Grant first" },
-    { key: "3", label: "Injected example", run: () => actions.ask(injectedUpload ?? "poisoned"), enabled: !!original && examples.clean && !chainUnavailable, why: original ? "Run the clean example first" : "Grant first" },
+    { key: "1", label: "Grant", run: actions.grant, enabled: !original && canSubmit, why: pending ? "Check the unconfirmed action first" : chainUnavailable ? "Check server status first" : "Already granted" },
+    { key: "2", label: "Clean example", run: () => actions.ask("clean"), enabled: !!original && canSubmit, why: pending ? "Check the unconfirmed action first" : "Grant first" },
+    { key: "3", label: "Injected example", run: () => actions.ask(injectedUpload ?? "poisoned"), enabled: !!original && examples.clean && canSubmit, why: pending ? "Check the unconfirmed action first" : original ? "Run the clean example first" : "Grant first" },
     { key: "4", label: "Monad evidence", run: actions.evidence, enabled: !!original, why: "Grant first" },
     { key: "r", label: preview === "closed" ? "Open report" : preview === "open" ? "Show hidden text" : "Close report", run: actions.preview, enabled: true },
-    { key: "5", label: "Force request", run: actions.force, enabled: !!original && !chainUnavailable, why: "Grant first" },
-    { key: "6", label: "Dispute", run: actions.dispute, enabled: hasBlocked && !disputed && !chainUnavailable, why: hasBlocked ? "Already disputed" : "Block a request first" },
+    { key: "5", label: "Force request", run: actions.force, enabled: !!original && canSubmit, why: pending ? "Check the unconfirmed action first" : "Grant first" },
+    { key: "6", label: "Dispute", run: actions.dispute, enabled: hasBlocked && !disputed && canSubmit, why: pending ? "Check the unconfirmed action first" : hasBlocked ? "Already disputed" : "Block a request first" },
     { key: "0", label: resetArmed ? "Press 0 again" : "Reset", run: actions.reset, enabled: true },
   ];
 
@@ -286,7 +308,7 @@ export default function SplitApp() {
       if (e.target instanceof HTMLElement && e.target.closest("input, textarea, select, [contenteditable='true']")) return;
       const k = keys.find((x) => x.key === e.key.toLowerCase());
       if (!k || !k.enabled) return;
-      if (busy) return;
+      if (controlsBusy) return;
       e.preventDefault();
       k.run();
     };
@@ -294,13 +316,17 @@ export default function SplitApp() {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  if (!data) return <div className="stage-loading">{error ?? "Loading…"}</div>;
+  if (!data) return <main className="preflight">
+    <h1>Envoi</h1>
+    <RequestFeedback connection={connection} pending={pending} error={error}
+      onRecheck={() => { void checkStatus(); }} rechecking={rechecking} busy={busy} />
+  </main>;
 
   const stepComplete = [!!original, examples.clean, examples.poisoned, false];
   const blocked = data.receipts.find((r) => r.decision === "BLOCKED" && r.kind === "action" && revealed.has(r.id)) ?? null;
 
   return (
-    <div className="stage" data-demo-busy={busy}>
+    <div className="stage" data-demo-busy={controlsBusy}>
       <header className="stage-header">
         <div className="stage-brand">
           <img src="/envoi-logo.png" alt="" />
@@ -328,24 +354,29 @@ export default function SplitApp() {
           preview={preview}
           attachment={attached}
           previewParts={attached.kind === "upload" ? attached.parts : partsFromScenario(data.scenario.reports[attached.reportId])}
-          canSend={!!original && !busy && !chainUnavailable && (attached.kind === "builtin" && attached.reportId === "clean" || examples.clean)}
-          canUpload={!busy}
+          canSend={!!original && canSubmit && (attached.kind === "builtin" && attached.reportId === "clean" || examples.clean)}
+          canUpload={!controlsBusy}
           sendReason={!original ? "Grant first" : !examples.clean && attached.kind === "upload" ? "Run the clean example first" : undefined}
           onSend={() => actions.ask(attached)}
           onUpload={actions.upload}
           onClosePreview={() => setPreview("closed")}
           onToggleHidden={() => setPreview((p) => p === "revealed" ? "open" : "revealed")}
-          busy={busy}
+          busy={controlsBusy}
         />
         <ChainColumn slips={data.slips} blocked={blocked} pulse={pulse} receipts={data.receipts.filter((r) => revealed.has(r.id))} review={activeStep === 4} />
         <MorganPane
           granted={!!original}
           granting={granting}
-          canGrant={!busy && !chainUnavailable}
+          canGrant={canSubmit}
           onGrant={actions.grant}
           stage={stage}
           error={error}
           allowedReceipt={allowedReceipt}
+          connection={connection}
+          pending={pending}
+          onRecheck={() => { void checkStatus(); }}
+          rechecking={rechecking}
+          busy={busy}
         />
       </main>
 
@@ -353,8 +384,8 @@ export default function SplitApp() {
         {keys.map((k) => (
           <button
             key={k.key}
-            disabled={!k.enabled || busy}
-            title={busy ? "Wait for the current operation to finish" : !k.enabled ? k.why : undefined}
+            disabled={!k.enabled || controlsBusy}
+            title={controlsBusy ? "Wait for the current operation to finish" : !k.enabled ? k.why : undefined}
             aria-keyshortcuts={k.key.toUpperCase()}
             data-key={k.key}
             onClick={k.run}

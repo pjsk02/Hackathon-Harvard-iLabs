@@ -11,6 +11,7 @@ Spec: `ENVOI_BUILD_SPEC.md`. Project rules and file ownership: `.agents/skills/e
 - Dev: workflow "Start application" runs `npm run dev` (tsx + Vite middleware on port 5000).
 - Prod: `npm run build` then `npm run start` (serves `dist/public`). Deploy as Reserved VM.
 - Typecheck: `npm run typecheck`.
+- P3 unit checks: `npm test`; repeatable browser checks: `npm run test:ui` (isolated browser responses, no live writes). See [testing](docs/P3_TESTING.md).
 
 ## Environment
 - `MOCK_CHAIN` was removed from development. Do not restore it for the demo; the client refuses practice-chain mode. A real-chain configuration flag alone does not prove signing or Monad readback works.
@@ -31,3 +32,4 @@ Spec: `ENVOI_BUILD_SPEC.md`. Project rules and file ownership: `.agents/skills/e
 - Aman owns P1 and pushes his own chain changes. Do not implement or overwrite his files while waiting.
 - P3 acceptance status: [docs/P3_ACCEPTANCE.md](docs/P3_ACCEPTANCE.md). Do not equate a finished screen or offline tests with a passing live demo.
 - Reset-generation integration for P1/P2: [docs/TEAM_ASKS_LIVE_AI_AND_MONAD.md](docs/TEAM_ASKS_LIVE_AI_AND_MONAD.md).
+- P1 branch review (not a merge or live pass): [docs/P1_INTEGRATION_REVIEW.md](docs/P1_INTEGRATION_REVIEW.md).

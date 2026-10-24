@@ -58,16 +58,20 @@ function partsFromText(text: string): Part[] {
 
 export async function readUpload(file: File): Promise<Attachment> {
   if (!/\.(docx|txt|md|html?)$/i.test(file.name)) throw new Error("Upload a Word (.docx), .txt, .md or .html file.");
-  if (file.size > 5_000_000) throw new Error("That file is too large.");
+  if (file.size > 5_000_000) throw new Error("Choose a file smaller than 5 MB.");
   let parts: Part[];
   if (/\.docx$/i.test(file.name)) {
-    parts = await partsFromDocx(file);
+    try {
+      parts = await partsFromDocx(file);
+    } catch {
+      throw new Error("That Word file could not be read; upload a valid .docx file.");
+    }
   } else {
     const raw = await file.text();
     parts = /\.html?$/i.test(file.name) ? partsFromHtml(raw) : partsFromText(raw);
   }
   const text = parts.map((p) => p.text).join("\n\n");
   if (!text) throw new Error("That file has no readable text.");
-  if (text.length > MAX_CHARS) throw new Error("That file is too long.");
+  if (text.length > MAX_CHARS) throw new Error("Choose a report with no more than 60,000 characters.");
   return { kind: "upload", fileName: file.name, text, parts };
 }

@@ -17,6 +17,7 @@ export async function partsFromDocx(file: File): Promise<Part[]> {
   for (const name of names) {
     const xml = await zip.file(name)!.async("string");
     const doc = new DOMParser().parseFromString(xml, "application/xml");
+    if (doc.querySelector("parsererror")) throw new Error("The Word document contains unreadable text.");
     walk(doc.documentElement, parts);
   }
   return parts;
