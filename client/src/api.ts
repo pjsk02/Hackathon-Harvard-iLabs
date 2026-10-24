@@ -2,6 +2,10 @@
 import type {
   ActRequest, AgentRunResponse, Receipt, ReportId, Slip, StateResponse,
 } from "@shared/contract";
+import { mockApi } from "./mock";
+
+/** /?mock=1 runs every beat in the browser with no server logic (MOCK badge shows). */
+export const isMock = new URLSearchParams(window.location.search).get("mock") === "1";
 
 async function call<T>(method: "GET" | "POST", url: string, body?: unknown): Promise<T> {
   let res: Response;
@@ -19,7 +23,7 @@ async function call<T>(method: "GET" | "POST", url: string, body?: unknown): Pro
   return json as T;
 }
 
-export const api = {
+const realApi = {
   state: () => call<StateResponse>("GET", "/api/state"),
   sign: (scenarioId: string) => call<Slip>("POST", "/api/slips", { scenarioId }),
   run: (reportId: ReportId) => call<AgentRunResponse>("POST", "/api/agent/run", { reportId }),
@@ -27,3 +31,6 @@ export const api = {
   dispute: () => call<Receipt>("POST", "/api/dispute"),
   reset: () => call<{ ok: true }>("POST", "/api/reset"),
 };
+
+export type Api = typeof realApi;
+export const api: Api = isMock ? mockApi : realApi;
