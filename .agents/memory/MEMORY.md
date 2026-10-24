@@ -1,0 +1,1 @@
+- [P1 collaboration scope](p1-collaboration-scope.md) — The user owns P1; coordinate shared changes with the separate P2 and P3 builders.
