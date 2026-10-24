@@ -9,6 +9,7 @@ import "./workspace.css";
 
 type RequestInput = { task: string; report: UploadedReport | null };
 type RunInput = RequestInput & { permissionId: string; previous: string[] };
+const QUICK_PROMPTS = ["Complete the request", "Verify this request", "Summarize this document"];
 
 export default function SplitApp() {
   const { data, draft, editDraft, busy, error, uncertain, reload, post } = useWorkspace();
@@ -21,6 +22,7 @@ export default function SplitApp() {
   const [run, setRun] = useState<RunInput | null>(null);
   const [resetConfirm, setResetConfirm] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const messageInput = useRef<HTMLTextAreaElement>(null);
   const previousConversationIds = useRef<Set<string> | null>(null);
   if (data && !previousConversationIds.current) previousConversationIds.current = new Set(data.conversations.map(item => item.id));
   const currentConversation = data?.conversations.filter(item => !previousConversationIds.current?.has(item.id)) ?? [];
@@ -102,9 +104,15 @@ export default function SplitApp() {
             </div>
             <form className="composer" onSubmit={e => { e.preventDefault(); void send(); }}>
               <label className="sr-only" htmlFor="task">Message Atlas</label>
-              <textarea id="task" maxLength={4000} value={draft.task} disabled={locked} placeholder="Message Atlas…" onChange={e => editDraft({ ...draft, task: e.target.value })} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); } }} />
+              <textarea ref={messageInput} id="task" maxLength={4000} value={draft.task} disabled={locked} placeholder="Message Atlas…" onChange={e => editDraft({ ...draft, task: e.target.value })} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); } }} />
               <input ref={fileInput} hidden type="file" accept={ACCEPT} disabled={locked} aria-label="Attach report" onChange={e => { const file = e.target.files?.[0]; if (file) void upload(file); e.target.value = ""; }} />
               {draft.report && <div className="attachment"><div className="row"><strong>{draft.report.fileName}</strong><button type="button" disabled={locked} onClick={() => { editDraft({ ...draft, report: null }); setParts([]); }}>Remove attachment</button></div><details><summary>Preview extracted report</summary><div className="fine">Untrusted text · hidden content included</div><div className="untrusted">{parts.length ? parts.map((part, i) => <div key={i}>{part.hidden && <strong>Hidden text · untrusted</strong>}<pre>{part.text}</pre></div>) : <pre>{draft.report.text}</pre>}</div></details></div>}
+              <div className="quick-prompts" role="group" aria-label="Quick prompts">
+                {QUICK_PROMPTS.map(prompt => <button key={prompt} type="button" disabled={locked} aria-controls="task" onClick={() => {
+                  editDraft({ ...draft, task: prompt });
+                  messageInput.current?.focus();
+                }}>{prompt}</button>)}
+              </div>
               <div className="row"><button type="button" disabled={locked} onClick={() => fileInput.current?.click()}>Attach document</button><button className="primary" type="submit" disabled={locked || !data.availability.chat || !draft.task.trim()}>Send message</button></div>
             </form>
             {uploading && <div role="status" className="fine">Extracting document…</div>}
