@@ -8,14 +8,14 @@ The latest user decisions override old mock, timing-display and driver-key requi
 The independent P3 correction pass is verified offline. At Rachel's request,
 it is handed to Aman for combined integration; see
 [the Git and integration handoff](P3_INTEGRATION_HANDOFF.md).
-**The judge-ready closeout is not complete.** No live send, live model run,
-live self-test, GitHub main integration push, publication, public judge-link
-verification or genuine backup recording was performed in this pass. A handoff
-branch is not the live app.
+The verified P3 source is synchronized to GitHub `main` at Rachel's explicit
+request so Aman can own integration. **The judge-ready closeout is not
+complete.** No live send, live model run, live self-test, publication, public
+judge-link verification or genuine backup recording was performed in this pass.
+A GitHub source push is not the live app.
 
-The latest fetched GitHub main has the same application code as the starting
-checkout; its additional documentation is now included in the handoff history.
-The attempt-recording
+The P3 source checkpoint retains the latest fetched main history and its P1
+documentation without editing P1/P2 implementation files. The attempt-recording
 handoff remains a proposal. Aman and Jay must still supply the approved working
 handoffs and agree the attempt/context interface before their files or the
 frozen shared JSON contract are changed.
@@ -63,7 +63,7 @@ frozen shared JSON contract are changed.
 | Retry cache integration with Reset | P3 now exposes P1's expected `getGeneration` getter; combined live reset/retry acceptance still remains. P2 must retain and check original request context. |
 | Published URL + secrets + rehearsals/backup video | Publishing status reports not published. Full demo rehearsal and backup recording remain pending. |
 | Optional dispute | Both UIs leave the control disabled until original-request evidence and a genuine live dispute are verified. It is not counted as completed or replaced by a fabricated rejection. |
-| Main-app integration | This fork's changes must be merged by the project workflow; local verification is not a GitHub main push or a deployed version. |
+| Source versus running app | P3 source is on GitHub main for Aman. This fork's main-app task merge, backend integration and production deployment remain separate; the source push does not establish any live-flow acceptance. |
 
 **Conclusion:** the P3 correction pass is checked within the available interfaces.
 The real-model, attempt-recording, approved live acceptance and public-link

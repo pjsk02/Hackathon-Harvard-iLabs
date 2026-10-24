@@ -7,30 +7,31 @@ the full live demo or judge-link closeout is complete.**
 ## Git reference
 
 - Repository: https://github.com/pjsk02/Hackathon-Harvard-iLabs
-- Handoff branch: `p3/verified-handoff`
+- Delivery branch: `main` (Rachel explicitly requested the shared integration base)
+- Original handoff branch retained: `p3/verified-handoff`
 - P3 implementation commit: `84994f8`
 - Upstream main included at handoff preparation: `801dd45`
-- Use the branch's latest commit for the handoff documentation too.
-- GitHub `main` is not changed by publishing this handoff branch.
+- Fetch the latest `origin/main` for the P3 implementation and these instructions.
+- This source synchronization is not a production publication or live-demo pass.
 
 The history sync added only the five P1 documentation files missing from the
 task checkout. It did not alter the tested application tree. P1/P2 code and
 `shared/contract.ts` match the fetched main; their implementations were not
 independently edited.
 
-From a clean team checkout, Aman can fetch and merge without replacing his files:
+From his clean integration/feature branch, Aman can fetch and merge without
+replacing his own work:
 
 ```sh
 git fetch origin
-git switch main
-git pull --ff-only origin main
-git merge --no-ff origin/p3/verified-handoff
+git merge origin/main
 ```
 
 Do not force-push, copy an older project snapshot over main, or drop newer owner
 work. Resolve any subsequent integration conflicts against the latest owner
-implementation. The task fork must also be merged through the main app's
-normal task workflow; a GitHub branch is not a deployed app.
+implementation. A separate merge of the original P3 handoff branch is not
+needed once it is included in main. The task fork must also be merged through
+the main app's normal task workflow; GitHub source is not a deployed app.
 
 ## Checked P3 changes
 
