@@ -1,5 +1,7 @@
 # Envoi — local development
 
+See [RUNNING_CONTEXT.md](RUNNING_CONTEXT.md) for the chronological record of team decisions, owner responsibilities, and verification status.
+
 Use Node.js 22.12 or newer. Development runs one Express process with Vite on
 [localhost:5000](http://localhost:5000); no Replit runtime is required.
 
