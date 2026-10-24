@@ -25,7 +25,7 @@ function appFor(router: express.Router) {
   return app;
 }
 
-test("existing named selftestRouter returns explicit 503; zero shared reset, mutation or child HTTP calls", async () => {
+test("existing named selftestRouter preserves the explicit no-work 501; zero shared reset, mutation or child HTTP calls", async () => {
   shared.addSlip(slip);
   shared.addReceipt(receiptInput());
   const before = sharedSnapshot();
@@ -36,7 +36,7 @@ test("existing named selftestRouter returns explicit 503; zero shared reset, mut
   await withTestApp(app, async (base) => {
     for (let i = 0; i < 2; i++) {
       const response = await fetch(`${base}/api/selftest?mode=live&isolated=true`);
-      assert.equal(response.status, 503);
+      assert.equal(response.status, 501);
       assert.equal(response.headers.get("X-Envoi-Selftest-Mode"), null);
       assert.deepEqual(await response.json(), { error: ISOLATION_UNAVAILABLE });
     }

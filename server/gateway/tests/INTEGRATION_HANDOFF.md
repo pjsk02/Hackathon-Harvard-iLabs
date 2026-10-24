@@ -10,9 +10,11 @@ production isolated self-test are **separate, deferred work**, not claimed compl
 | Item | Verified reference |
 | --- | --- |
 | Owner-reviewed source reference | `801dd452bd1b3ca1df5c634112191f50ac786161` |
-| Current main / final integration base | `ab38b963d581b910e108d9964d3df2d25a6b2fa8` |
+| First P2 publication base | `ab38b963d581b910e108d9964d3df2d25a6b2fa8` |
+| Current-main integration / correction source / patch base | `c300351031374cfcdd3710b659055e64897852de` |
+| Prior published P2, now included in main | `f368b61f518e7e9067b1ad4d7f8e5aa95a6cabd8` |
 | Current remote P1 | `7c14d056ea61e3476f057c9ed65b5d034e80d0eb` |
-| Remote P2 before source publication | `e06db4f0422b0ddf6d91960a3425b05d3a2af736` |
+| Remote P2 before the first source publication | `e06db4f0422b0ddf6d91960a3425b05d3a2af736` |
 | Preserved local P2 checkpoint | `590aab422fc97f08fe69eeab08afed24c2c265d7` |
 | Preserved earlier checkpoint | `48a492d43a392b89694622e559f8cdd1dc4c9277` |
 | P2 checkpoint base | `e06db4f0422b0ddf6d91960a3425b05d3a2af736` |
@@ -20,15 +22,39 @@ production isolated self-test are **separate, deferred work**, not claimed compl
 The preserved `.local/p2-je` and earlier review directory no longer have their own
 `.git` entries. Git there resolves to the parent. Neither was repaired or edited.
 The earlier review source was checked against its 25-file package manifest.
-A verified clone at `.local/p2-compat-review/candidate` retains the reviewed source
-and its passing results. Main advanced during pre-publication verification; no
-push happened then. A separate final clone at
-`.local/p2-compat-review/current-main-candidate` uses verified metadata at
-`.local/p2-compat-review/current-main-git`, no alternates, and branch `P2-Je`.
-Its base is the current main above. Preserved P2 history is retained separately;
-the accompanying bundle/manifest identify exact sources.
+Earlier verified clones under `.local/p2-compat-review/` retain their source and
+passing results. The first published compatibility source was based on
+`ab38b963…`, with independent metadata and no alternates. Those earlier clones'
+ordinary Git identity must not now be assumed. Preserved P2 history is retained
+separately; the accompanying bundle/manifest identify exact sources.
 No shared checkout, branch or Git metadata was repaired, switched or staged.
 Existing checkpoint packages, dirty source and prior review packages are preserved.
+
+The completion check identified a browser compatibility correction: the earlier
+503 refused work safely on the server but was persisted as an unconfirmed browser
+action. The correction uses P3's already-delivered exact 501/message contract and
+tests the real requester without editing any P3 source. It was built from the
+published P2 source initially in a verified `.local/p2-browser-review/candidate`,
+with independent `.local/p2-browser-review/review-metadata`. Verify identity again
+before using an older review directory: its source may survive while `.git` does not.
+
+Main later advanced to `52bb1e2…` with P3 product wording, sample-report and
+backward-compatible refusal-copy changes. The exact self-test 501/message
+classification and P1/P2 APIs are unchanged. The corrected P2 files were also
+validated in a disposable copy of that main, including its updated
+scenarios and browser requester. This is a test-only integration snapshot, not
+another writer.
+
+Upstream then incorporated the prior P2 publication in `eed157b…` and added
+Windows run/test wrappers in `c300351…`. That incorporation was performed
+upstream, not by this task. P1 and P2 source match the earlier publication; no
+context/isolation interface was added. A fresh final correction target,
+`.local/p2-browser-review/current-main-candidate`, has independent metadata at
+`.local/p2-browser-review/current-main-metadata` and is based on `c300351…`.
+Only the four correction files were copied from the earlier target. The new
+package therefore contains a **four-file P2-only diff**, not a cumulative patch
+that would duplicate the already-integrated P2 implementation. Source publication
+remains a normal fast-forward of P2-Je; no shared merge or application was performed.
 
 `5c5241c…` delivered P3 HTTP/session/presentation safeguards; `ab38b96…` added
 handoff text only, with the same application tree. P1, P2, shared contracts and
@@ -40,7 +66,8 @@ Per current `docs/P3_INTEGRATION_HANDOFF.md`, **Aman now owns combined integrati
 Only P2 ownership paths were overlaid. The three preserved prerequisite files
 `server/state.ts`, `server/routes/state.ts`, `server/index.ts` match Rachel's
 `6899947967437df75bfc1cceb2572e40b3970b72` versions; they were **not** overlaid.
-The candidate keeps their current-main versions and all current P1 modules.
+The final isolated correction target keeps their current-main versions and all
+current P1 modules, including the delivered product wording and portable scripts.
 No shared type, scenario, UI, configuration, package, lockfile, skill or memory
 is part of the P2 diff. Neutral-agent, upload and reset work is preserved, not
 replaced with another provider implementation.
@@ -72,7 +99,12 @@ replaced with another provider implementation.
   than treating a proposed context as agreed. No normal-action acquisition error
   falls back to this compatibility path. It does not protect same-second replay.
 - The named `selftestRouter` and existing `GET /api/selftest` are preserved.
-  Its mounted default returns 503 before reset, issuance, data or child HTTP.
+  Its mounted default uses the existing P3 no-work pair:
+  **501 `{error:"The self-test is not built yet."}`**, before factory admission,
+  reset, issuance, data or child HTTP. The unavailable capability is the approved
+  isolated-state adapter, not a reason to reset the shared demo. P3's actual browser
+  requester recognizes only this exact pair; changing it to 503 incorrectly left
+  an unconfirmed action that blocked the UI until shared Reset.
   It has **no** singleton snapshot/restore, shared reset, loopback fetch or extra mount.
 - The internal runner verifies signatures/digests, stamp readback callbacks,
   ordered checks, forced source, request/candidate identities, null denied data,
@@ -86,18 +118,24 @@ replaced with another provider implementation.
 - A bounded router test seam holds its single-flight lock until the underlying
   child/factory **and cleanup** settle, even after an HTTP timeout. This is tested
   separately from owner delivery; a factory parameter or flag is not proof of isolation.
+- Browser-request compatibility now runs P3's actual requester, persistence and
+  HTTP guard against the mounted route. Definite no-work refusals leave no pending
+  record, including after reload, and allow the next action without Reset. Registered
+  factory failures and actual deadlines remain unconfirmed; no broad 503 exemption
+  or outside-owner browser change was made.
 
 ## Exact route and error semantics
 
 | Entry point | Current candidate behavior |
 | --- | --- |
-| `GET /api/selftest`, existing mount | 503 `{error:"Self-test is unavailable: an approved isolated state adapter has not been integrated; the shared demo will not be reset."}` |
+| `GET /api/selftest`, existing mount | 501 `{error:"The self-test is not built yet."}`; existing P3 no-work contract, no shared reset/recovery record |
 | `runSelftest(client, evidence?, signal?)` | Internal only; exact `{pass,steps:[{scene,expected,got,ms}]}`; stop on the first failed scene |
 | `createSelftestRouter({createIsolatedSession,maximumMs})` | Internal injection seam only; no client-selected mode/factory; default has no factory |
 | Internal runner success | Four scenes; no extra JSON fields; evidence in first scene and `X-Envoi-Selftest-Mode` |
 | Internal verification failure | 200 with `pass:false`, safe stage-specific cause; no raw provider error |
 | Busy run / stale isolated session | 409 `{error}` |
-| Missing isolation / preparation or cleanup failure | 503 `{error}` |
+| No registered isolated-state factory | Exact pre-admission 501 pair above; no work has started |
+| Registered factory preparation or cleanup failure | 503 `{error}`; not classified as definite no-work |
 | Overall deadline | 504 `{error}`; lock remains until pending work settles |
 | `POST /api/act` | Existing body and receipt shape; invalid body 400; missing slip 404; reset 409; unverifiable reference/evidence 503 |
 | `POST /api/dispute` | P1 route unchanged; genuine next-second compatibility rejection works with available interfaces. No context-storage hook is claimed |

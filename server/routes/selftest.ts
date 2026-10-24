@@ -5,8 +5,11 @@ import { runSelftest, type SceneClient, type SelftestEvidence } from "../gateway
 
 export { runSelftest } from "../gateway/selftest-runner";
 
-export const ISOLATION_UNAVAILABLE =
-  "Self-test is unavailable: an approved isolated state adapter has not been integrated; the shared demo will not be reset.";
+// Preserve P3's EXISTING exact 501/message no-work contract. This branch runs
+// before factory admission, reset, issuance or any child operation. A different
+// status/message would incorrectly persist an unconfirmed browser action and
+// force the visitor to reset the shared demo merely to recover from this refusal.
+export const ISOLATION_UNAVAILABLE = "The self-test is not built yet.";
 
 // Trusted in-process injection only. No request header/query/body can choose this.
 // The factory is deliberately absent from the mounted production router. A marker,
@@ -29,7 +32,7 @@ export function createSelftestRouter({ createIsolatedSession, maximumMs = 30_000
   let running = false;
   router.get("/api/selftest", async (_req, res) => {
     if (running) throw httpError(409, "A self-test is already running; its operations must settle before another run.");
-    if (!createIsolatedSession) throw httpError(503, ISOLATION_UNAVAILABLE);
+    if (!createIsolatedSession) throw httpError(501, ISOLATION_UNAVAILABLE);
     running = true;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
