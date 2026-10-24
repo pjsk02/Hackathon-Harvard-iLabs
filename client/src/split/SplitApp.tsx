@@ -7,9 +7,6 @@ import { AGENT_ID, MANDATE_ID } from "@shared/contract";
 import { consulting } from "@shared/scenarios";
 import { api } from "../api";
 import RequestFeedback, { type ConnectionStatus } from "../RequestFeedback";
-import { demoPresentation, useDemoPresentation } from "../demo-presentation";
-import { builtin } from "../presentation-store";
-import SharedDemoNotice from "../SharedDemoNotice";
 import { COPY, answerFrom, shownChecks, weekday } from "../labels";
 import BainePane from "./BainePane";
 import ChainColumn from "./ChainColumn";
@@ -30,17 +27,18 @@ function liveWords(transcript: string): string | null {
 }
 const nextId = () => `f${++seq}`;
 
-export default function SplitApp({ onSwitchView }: { onSwitchView: () => void }) {
-  const presentation = useDemoPresentation();
-  const { attached, injectedUpload, examples, activeStep } = presentation;
-  const setActiveStep = demoPresentation.setStep;
-  const setAttached = demoPresentation.attach;
+export default function SplitApp() {
   const [data, setData] = useState<StateResponse | null>(null);
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [stage, setStage] = useState<Stage | null>(null);
   const [pulse, setPulse] = useState<Slip["label"] | null>(null);
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const [preview, setPreview] = useState<Preview>("closed");
+  const builtin = (reportId: ReportId): Attachment => ({ kind: "builtin", reportId, fileName: COPY.attachments[reportId] });
+  const [attached, setAttached] = useState<Attachment>(builtin("clean"));
+  const [injectedUpload, setInjectedUpload] = useState<Attachment | null>(null);
+  const [examples, setExamples] = useState({ clean: false, poisoned: false });
+  const [activeStep, setActiveStep] = useState(1);
   const [allowedReceipt, setAllowedReceipt] = useState<Receipt | null>(null);
   const [busy, setBusy] = useState(false);
   const [granting, setGranting] = useState(false);
@@ -51,40 +49,39 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
   const pending = useSyncExternalStore(api.subscribeToPending, api.pendingAction, api.pendingAction);
   const chainUnavailable = connection.state !== "unverified";
   const controlsBusy = busy || rechecking || pending?.phase === "waiting";
-  const canSubmit = !controlsBusy && !pending && !chainUnavailable && !presentation.serverBusy;
+  const canSubmit = !controlsBusy && !pending && !chainUnavailable;
   const operation = useRef(false);
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const token = useRef(0); // bumps on reset so a running choreography stops
-  const shownSession = useRef<string | null>(null);
-
-  const acceptState = useCallback((s: StateResponse, restore = false) => {
-    const saved = demoPresentation.getSnapshot();
-    if (restore || shownSession.current !== saved.sessionId) {
-      token.current++;
-      shownSession.current = saved.sessionId;
-      const latest = s.receipts[0];
-      setStage(latest ? { action: latest.action, receipt: latest, phase: "done", checksShown: 5, earlier: null } : null);
-      setAllowedReceipt(s.receipts.find((r) => r.decision === "ALLOWED" && r.action === consulting.allowed.name) ?? null);
-      setRevealed(new Set(s.receipts.map((r) => r.id)));
-      setFeed([...s.receipts].reverse().filter((r) => r.kind === "action").map((r) => ({
-        kind: "request", id: r.id, action: r.action, why: false, forced: r.source === "forced", verdict: r.decision,
-      })));
-      setPreview("closed");
-      setPulse(null);
-    }
-    setData(s);
-  }, []);
 
   const refresh = useCallback(async () => {
     try {
       const s = await api.state();
-      acceptState(s);
+      setData(s);
       return s;
     } catch (e) {
       setError((previous) => previous ?? (e as Error).message);
       return null;
     }
-  }, [acceptState]);
+  }, []);
+
+  async function recheckAttempt(receipt: Receipt, attemptId: string) {
+    if (operation.current || api.pendingAction()?.phase === "waiting") return;
+    operation.current = true;
+    setRechecking(true);
+    setError(null);
+    try {
+      const updated = await api.reconcile(attemptId, receipt.id);
+      setData((current) => current && { ...current, receipts: current.receipts.map((r) => r.id === updated.id ? updated : r) });
+      setStage((current) => current?.receipt?.id === updated.id ? { ...current, receipt: updated } : current);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      await refresh();
+      setRechecking(false);
+      operation.current = false;
+    }
+  }
 
   const checkStatus = useCallback(async () => {
     if (operation.current) return;
@@ -95,23 +92,25 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
     const [stateResult, healthResult] = await Promise.allSettled([api.state(), api.health()]);
     if (stateResult.status === "fulfilled") {
       const s = stateResult.value;
-      acceptState(s, true);
+      setData(s);
+      setRevealed(new Set(s.receipts.map((r) => r.id)));
+      if (s.slips.some((slip) => slip.label === "Original")) setActiveStep(2);
+      const latest = s.receipts[0];
+      if (latest) setStage({ action: latest.action, receipt: latest, phase: "done", checksShown: 5, earlier: null });
     } else setError((stateResult.reason as Error).message);
     if (healthResult.status === "rejected" || stateResult.status === "rejected") {
-      setConnection({ state: "unavailable", message: "Could not read the server and session status; check again before submitting." });
+      setConnection({ state: "unavailable", message: "Could not read the server and demo status; check again before submitting." });
       if (healthResult.status === "rejected") setError((previous) => previous ?? (healthResult.reason as Error).message);
     } else if (!healthResult.value.ok || healthResult.value.mockChain) {
       setConnection({ state: "unavailable", message: healthResult.value.mockChain
-        ? "Practice-chain mode is enabled; live requests are blocked."
+        ? "Practice-chain mode is enabled; the live demo is blocked."
         : "The server reported a failed health check." });
-    } else if (!healthResult.value.issuer) {
-      setConnection({ state: "unavailable", message: "Signing is not configured; live requests cannot start yet." });
     } else {
       setConnection({ state: "unverified", message: "Server responded; signing and the Monad connection are not yet verified." });
     }
     operation.current = false;
     setRechecking(false);
-  }, [acceptState]);
+  }, []);
 
   useEffect(() => {
     void checkStatus();
@@ -126,7 +125,7 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
 
   /** Wrap a beat: lock the controls, catch the one-sentence error. */
   async function beat(fn: (alive: () => boolean) => Promise<void>) {
-    if (operation.current || chainUnavailable || api.pendingAction() || demoPresentation.getSnapshot().serverBusy) return;
+    if (operation.current || chainUnavailable || api.pendingAction()) return;
     operation.current = true;
     const mine = token.current;
     const alive = () => token.current === mine;
@@ -141,9 +140,11 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
         setFeed((f) => f.map((x) => (x.kind === "status" && !x.done ? { ...x, done: true } : x)));
       }
     } finally {
-      await refresh();
-      setBusy(false);
-      operation.current = false;
+      if (alive()) {
+        await refresh();
+        setBusy(false);
+        operation.current = false;
+      }
     }
   }
 
@@ -151,7 +152,7 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
   async function reveal(r: Receipt, alive: () => boolean, opts: { bubble: boolean; earlier: Stage["earlier"] }) {
     const bubbleId = r.id;
     if (opts.bubble) {
-      push({ kind: "request", id: bubbleId, action: r.action, why: false, forced: r.source === "forced", verdict: null });
+      push({ kind: "request", id: bubbleId, action: r.action, why: r.source === "agent" && r.action === consulting.forbidden.name, forced: r.source === "forced", verdict: null });
     }
     setPulse(r.mandateId === MANDATE_ID ? "Original" : "Amended");
     setStage({ action: r.action, phase: "checking", receipt: r, checksShown: 0, earlier: opts.earlier });
@@ -175,6 +176,8 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
   }
 
   const original = data?.slips.find((s) => s.label === "Original");
+  const hasBlocked = !!data?.receipts.some((r) => r.decision === "BLOCKED" && r.kind === "action");
+  const disputed = !!data?.receipts.some((r) => r.kind === "dispute");
 
   const actions = {
     preview: () => {
@@ -201,6 +204,7 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
       try {
         const upload = await readUpload(file);
         setAttached(upload);
+        setInjectedUpload(upload);
         setPreview("open");
       } catch (e) {
         setError((e as Error).message);
@@ -213,6 +217,7 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
       const att = typeof which === "string" ? builtin(which) : which;
       const reportId = att.kind === "upload" ? "poisoned" : att.reportId;
       setActiveStep(reportId === "clean" ? 2 : 3);
+      setAllowedReceipt(null);
       setPreview("closed");
       setAttached(att);
       const file = att.fileName;
@@ -242,6 +247,7 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
       const answer = allowed ? answerFrom(allowed.data) : null;
       if (answer) push({ kind: "answer", id: nextId(), text: answer });
       else if (ordered.length === 0) push({ kind: "answer", id: nextId(), text: "No data requested." });
+      setExamples((previous) => ({ ...previous, [reportId]: true }));
     }),
     evidence: () => {
       setActiveStep(4);
@@ -249,6 +255,7 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
       document.getElementById("monad-evidence")?.focus({ preventScroll: true });
     },
     force: () => beat(async (alive) => {
+      setAllowedReceipt(null);
       const r = await api.act({ agentId: AGENT_ID, mandateId: MANDATE_ID, action: data!.scenario.forbidden.name });
       if (!alive()) return;
       await refresh();
@@ -286,6 +293,10 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
         setPulse(null);
         setRevealed(new Set());
         setPreview("closed");
+        setAttached(builtin("clean"));
+        setInjectedUpload(null);
+        setExamples({ clean: false, poisoned: false });
+        setActiveStep(1);
         setAllowedReceipt(null);
         setError(null);
       } catch (e) {
@@ -301,12 +312,12 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
   const keys: { key: string; label: string; run: () => void; enabled: boolean; why?: string }[] = [
     { key: "1", label: "Grant", run: actions.grant, enabled: !original && canSubmit, why: pending ? "Check the unconfirmed action first" : chainUnavailable ? "Check server status first" : "Already granted" },
     { key: "2", label: "Clean example", run: () => actions.ask("clean"), enabled: !!original && canSubmit, why: pending ? "Check the unconfirmed action first" : "Grant first" },
-    { key: "3", label: "Injected example", run: () => actions.ask(injectedUpload ?? "poisoned"), enabled: !!original && !!examples.clean && canSubmit, why: pending ? "Check the unconfirmed action first" : original ? "Run the clean example first" : "Grant first" },
+    { key: "3", label: "Injected example", run: () => actions.ask(injectedUpload ?? "poisoned"), enabled: !!original && examples.clean && canSubmit, why: pending ? "Check the unconfirmed action first" : original ? "Run the clean example first" : "Grant first" },
     { key: "4", label: "Monad evidence", run: actions.evidence, enabled: !!original, why: "Grant first" },
     { key: "r", label: preview === "closed" ? "Open report" : preview === "open" ? "Show hidden text" : "Close report", run: actions.preview, enabled: true },
     { key: "5", label: "Force request", run: actions.force, enabled: !!original && canSubmit, why: pending ? "Check the unconfirmed action first" : "Grant first" },
-    { key: "6", label: "Dispute", run: actions.dispute, enabled: false, why: "Unavailable until the original-request evidence and live dispute have been verified." },
-    { key: "0", label: resetArmed ? "Confirm new run / Reset" : "New run / Reset", run: actions.reset, enabled: !presentation.serverBusy, why: "An action is still being processed; check status." },
+    { key: "6", label: "Dispute", run: actions.dispute, enabled: hasBlocked && !disputed && canSubmit, why: pending ? "Check the unconfirmed action first" : hasBlocked ? "Already disputed" : "Block a request first" },
+    { key: "0", label: resetArmed ? "Press 0 again" : "Reset", run: actions.reset, enabled: true },
   ];
 
   useEffect(() => {
@@ -339,7 +350,7 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
           <img src="/envoi-logo.png" alt="" />
           <span>Envoi</span>
         </div>
-        <ol className="stage-steps" aria-label="Request workflow">
+        <ol className="stage-steps" aria-label="Demo order">
           {COPY.steps.map((s, i) => {
             const n = i + 1;
             return (
@@ -354,7 +365,6 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
           <span className="stage-fictional">{COPY.fictional}</span>
         </div>
       </header>
-      <SharedDemoNotice />
 
       <main className="stage-cols">
         <BainePane
@@ -362,7 +372,7 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
           preview={preview}
           attachment={attached}
           previewParts={attached.kind === "upload" ? attached.parts : partsFromScenario(data.scenario.reports[attached.reportId])}
-          canSend={!!original && canSubmit && (attached.kind === "builtin" && attached.reportId === "clean" || !!examples.clean)}
+          canSend={!!original && canSubmit && (attached.kind === "builtin" && attached.reportId === "clean" || examples.clean)}
           canUpload={!controlsBusy}
           sendReason={!original ? "Grant first" : !examples.clean && attached.kind === "upload" ? "Run the clean example first" : undefined}
           onSend={() => actions.ask(attached)}
@@ -371,7 +381,8 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
           onToggleHidden={() => setPreview((p) => p === "revealed" ? "open" : "revealed")}
           busy={controlsBusy}
         />
-        <ChainColumn slips={data.slips} blocked={blocked} pulse={pulse} receipts={data.receipts.filter((r) => revealed.has(r.id))} review={activeStep === 4} />
+        <ChainColumn slips={data.slips} blocked={blocked} pulse={pulse} receipts={data.receipts.filter((r) => revealed.has(r.id))} review={activeStep === 4}
+          busy={controlsBusy} onRecheck={(receipt, attemptId) => { void recheckAttempt(receipt, attemptId); }} />
         <MorganPane
           granted={!!original}
           granting={granting}
@@ -388,7 +399,7 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
         />
       </main>
 
-      <footer className="stage-keys" aria-label="Workflow controls; keyboard shortcuts are optional">
+      <footer className="stage-keys" aria-label="Driver keys">
         {keys.map((k) => (
           <button
             key={k.key}
@@ -402,7 +413,7 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
             <kbd>{k.key.toUpperCase()}</kbd> {k.label}
           </button>
         ))}
-        <button onClick={onSwitchView} disabled={controlsBusy}><kbd>V</kbd> Classic view</button>
+        <span className="keys-note"><kbd>V</kbd> classic view</span>
       </footer>
     </div>
   );

@@ -52,7 +52,8 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     res.status(400).json({ error: "The request body was not valid JSON." });
     return;
   }
-  console.error(err);
+  // Unknown provider errors may contain credentials or report text.
+  console.error("Unhandled request error");
   // Chain problems have plain-sentence messages worth showing on the pre-flight panel.
   const msg: string = err?.message ?? "";
   if (/ISSUER_PRIVATE_KEY is not set/.test(msg)) {

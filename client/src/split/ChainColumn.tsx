@@ -1,8 +1,10 @@
-// Permission anchors are Monad evidence. Request receipts are application records only.
+// Permission and attempt evidence are counted and verified independently.
 import type { Receipt, Slip } from "@shared/contract";
 import { consulting } from "@shared/scenarios";
 import { AGENT, CLIENT, COPY, FIRM, permissionName, shortLabel, time, weekday } from "../labels";
 import { recordedAnchor, receiptShowsLatePermission } from "./evidence";
+import AttemptEvidence from "../AttemptEvidence";
+import { evidenceCounts } from "../attempt-evidence";
 import "./evidence.css";
 
 type Props = {
@@ -12,12 +14,14 @@ type Props = {
   /** Only receipts already revealed by the parent choreography. */
   receipts?: Receipt[];
   review?: boolean;
+  busy?: boolean;
+  onRecheck?: (receipt: Receipt, attemptId: string) => void;
 };
 type Item =
   | { kind: "slip"; at: number; rank: number; slip: Slip }
   | { kind: "marker"; at: number; rank: number; receipt: Receipt };
 
-export default function ChainColumn({ slips, blocked, pulse, receipts = [], review = false }: Props) {
+export default function ChainColumn({ slips, blocked, pulse, receipts = [], review = false, busy, onRecheck }: Props) {
   const attempts = [...new Map([...receipts, ...(blocked ? [blocked] : [])].map((r) => [r.id, r])).values()];
   const items: Item[] = [
     ...slips.map((slip): Item => ({
@@ -36,23 +40,21 @@ export default function ChainColumn({ slips, blocked, pulse, receipts = [], revi
         <span className="pane-role">{COPY.headers.chain.role}</span>
       </h2>
       <p className="chain-sub">{COPY.chainSubtitle}</p>
-      {review && (
-        <p className="evidence-summary" role="status">
-          <span>{recorded ? "Permission public-record links supplied by the server" : "No usable permission public-record link supplied"}</span>
-          <span>Attempts are application records, not recorded on Monad.</span>
-          {recorded > 0 && recorded < slips.length && <span>Some permissions have no usable public-record link.</span>}
-        </p>
-      )}
+      <p className="evidence-summary" role="status">
+          <span>{recorded} permission records · {evidenceCounts(slips, attempts)} attempt records confirmed on Monad.</span>
+          {review && <span>{recorded ? "Permission recorded on Monad" : "No confirmed permission record on Monad"}</span>}
+          {recorded > 0 && recorded < slips.length && <span>Some permissions have no confirmed record.</span>}
+      </p>
       <div className="chain">
         {items.length === 0 && <p className="empty">{COPY.empty.chain}</p>}
         {items.map((item) => item.kind === "marker" ? (
           <div key={`attempt-${item.receipt.id}`} className="marker attempt-marker">
             <strong>
-              {item.receipt.kind === "dispute" ? "Permission review" : item.receipt.source === "forced" ? "Forced request" : "Atlas request"}
+              {item.receipt.kind === "dispute" ? "Permission review" : item.receipt.source === "forced" ? "Manual request" : "Atlas request"}
               {" · "}{shortLabel(item.receipt.action)} · {item.receipt.decision}
             </strong>
             <span>Application record · {time(item.receipt.actionTime)}</span>
-            <span className="attempt-unrecorded">Not recorded on Monad</span>
+            <AttemptEvidence receipt={item.receipt} slips={slips} busy={busy} onRecheck={onRecheck} />
           </div>
         ) : (
           <Block key={item.slip.mandate.mandateId} slip={item.slip}
@@ -104,7 +106,7 @@ function Block({ slip, pulsing, superseded, lateReceipt }: {
       </ul>
       <div className="block-meta">
         {slip.label === "Amended" ? `Dated ${weekday(slip.mandate.issuedAt)}` : `Issued for ${CLIENT}`}
-        {anchor && ` · Server-reported record time ${time(anchor.blockTimestamp)}`}
+        {anchor && ` · Recorded ${time(anchor.blockTimestamp)}`}
       </div>
       {late && <span className="late-tag">{COPY.addedAfter}</span>}
     </div>

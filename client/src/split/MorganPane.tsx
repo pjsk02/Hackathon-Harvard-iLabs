@@ -87,8 +87,7 @@ function Current({ stage }: { stage: Stage }) {
         </div>
       )}
       <div className="eyebrow">
-        {r?.source === "forced" ? (r.kind === "dispute" ? "PERMISSION REVIEW" : "FORCED REQUEST") : COPY.asksFor}
-        {r?.source === "forced" && r.kind !== "dispute" && <span className="tag">{COPY.forced}</span>}
+        {r?.kind === "dispute" ? "PERMISSION REVIEW" : r?.source === "forced" ? "MANUAL REQUEST FOR" : COPY.asksFor}
       </div>
       <div className="asked">{itemLabel(stage.action)}</div>
 
@@ -114,7 +113,7 @@ function Current({ stage }: { stage: Stage }) {
   );
 }
 
-export function AllowedTable({ receipt }: { receipt: Receipt }) {
+function AllowedTable({ receipt }: { receipt: Receipt }) {
   const rows = profitabilityRows(receipt);
   const lowest = new Set([...rows].sort((a, b) => a.margin - b.margin).slice(0, 2).map((row) => row.index));
   return (

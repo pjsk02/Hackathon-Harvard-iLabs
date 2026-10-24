@@ -33,6 +33,30 @@ export type Check = { id: CheckId; label: string; pass: boolean; detail: string 
 
 export type Decision = "ALLOWED" | "BLOCKED" | "REJECTED";
 
+// Additive attempt evidence approved for the integrated P1/P2/P3 work.
+export type AttemptRecord = {
+  version: 1;
+  attemptId: string;
+  receiptId: string;
+  chainId: 10143;
+  permissionFingerprint: string;
+  requestBlock: { blockNumber: number; blockHash: string; blockTimestamp: number };
+  agent: "atlas-research-agent" | "other";
+  action: "read_regional_margins" | "read_employee_salaries" | "other";
+  source: "agent" | "forced";
+  decision: "ALLOWED" | "BLOCKED";
+  checks: { id: CheckId; pass: boolean }[];
+};
+
+export type AttemptEvidence = {
+  record: AttemptRecord;
+  fingerprint: string;
+} & (
+  | { status: "pending"; anchor: null; txHash: string | null; detail: string }
+  | { status: "recorded"; anchor: Anchor; txHash: string }
+  | { status: "failed"; anchor: null; txHash: string | null; detail: string }
+);
+
 export type Receipt = {
   id: string;
   kind: "action" | "dispute";
@@ -46,6 +70,7 @@ export type Receipt = {
   checks: Check[]; // always all five, order: signed, agent, valid, stamped, scope
   data: unknown | null;
   explorerUrl: string | null;
+  attemptEvidence?: AttemptEvidence;
 };
 
 export type ActionDef = { name: string; label: string };

@@ -2,18 +2,19 @@
   "name": "envoi",
   "version": "1.0.0",
   "private": true,
-  "description": "Envoi: signed agent permissions, request controls and public records on Monad.",
+  "description": "Envoi hackathon demo: permission slip, bouncer and public record on Monad.",
   "type": "module",
   "scripts": {
     "dev": "tsx watch --clear-screen=false --ignore 'client/**' server/index.ts",
     "build": "vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
     "typecheck": "tsc --noEmit",
-    "test:state": "node --import tsx --test server/state.test.ts server/http.test.ts",
-    "test:chain": "node --import tsx --test server/chain/chain.test.ts server/chain/permission-service.test.ts server/chain/rpc-safety.test.ts",
-    "test:client": "node --import tsx --test client/tests/request.test.ts client/tests/presentation.test.ts client/tests/product-copy.test.ts",
-    "test:ui": "node --import tsx --test --test-concurrency=1 client/tests/ui.test.ts",
-    "test": "npm run test:state && npm run test:chain && npm run test:client"
+    "test:state": "node --import tsx --test server/state.test.ts",
+    "test:chain": "node --import tsx --test server/chain/chain.test.ts server/chain/permission-service.test.ts server/chain/rpc-safety.test.ts server/chain/attempt-recording.test.ts",
+    "test:agent": "node --import tsx --test server/agent/integration.test.ts",
+    "test:client": "node --import tsx --test client/tests/request.test.ts client/tests/attempt-evidence.test.ts client/tests/attempt-request.test.ts",
+    "test:ui": "node --import tsx --test --test-concurrency=1 client/tests/ui.test.ts client/tests/attempt-ui.test.ts",
+    "test": "npm run test:state && npm run test:chain && npm run test:agent && npm run test:client"
   },
   "repository": {
     "type": "git",
