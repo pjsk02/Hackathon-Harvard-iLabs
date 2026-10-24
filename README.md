@@ -1,0 +1,43 @@
+# Envoi Replit Agent skills
+
+Eight skills for the hackathon build. Each folder in `.agents/skills/` has one `SKILL.md`. Replit Agent reads every skill's name and description on each chat and loads the full skill only when the task needs it.
+
+## Install (2 minutes, at 9:30)
+
+1. In the main Repl, open the Shell and create the folder: `mkdir -p .agents/skills`
+2. Drag the eight skill folders from this pack into `.agents/skills/` (or upload `envoi-replit-skills.zip` and run `unzip envoi-replit-skills.zip`).
+3. Commit them in the Git pane (`chore: add agent skills`) so every teammate's Agent thread gets them.
+4. Check: ask Agent (Free mode) "Which skills do you have?" It should list all eight.
+
+These can also be pasted into Claude Code or Codex as context: give your coding agent `envoi-contract` plus the skill for your role.
+
+## Who uses what
+
+| Skill | Owner | Use it when |
+| --- | --- | --- |
+| `envoi-contract` | Everyone | Any change: types, routes, file ownership, on-screen words |
+| `monad-anchor` | P1 | ledger.ts, mockLedger.ts, RPC, transactions, explorer |
+| `eip712-slip` | P1 | slip.ts, `/api/slips`, `/api/dispute` |
+| `envoi-bouncer` | P2 | checks.ts, gateway.ts, data, `/api/act`, `/api/selftest` |
+| `claude-tool-agent` | P2 | agent.ts, `/api/agent/run`, `/api/agent/eval` |
+| `envoi-ui` | P3 | client/, layout, tokens, copy, animation |
+| `replit-ship` | P3 (all) | Deploying, secrets, smoke test, git, Agent modes |
+| `demo-captain` | Rachel (all) | Gates, scope requests, script, judge Q&A |
+
+## What differs from ENVOI_BUILD_SPEC.md (found by testing)
+
+- **No `temperature: 0`.** `@anthropic-ai/sdk` 1.x removed `temperature` from request types and newer models reject it.
+- **The dispute waits for chain time to pass the blocked request before anchoring.** Without this, the amended stamp can land in the same second and the dispute comes back ALLOWED (always on the mock, sometimes on Monad).
+- **`issuedAt` is now minus 60 seconds.** Request time comes from the chain, so a server clock running ahead would fail "valid" on a fresh slip.
+- **The mock ledger reports the real issuer address as `from`.** Otherwise "stamped" always fails on the mock, and Gate 1 can't pass.
+- **The bouncer compares the request's agentId,** not a constant.
+
+## Sources these were adapted from
+
+- `monskills` Monad agent skills: github.com/therealharpaljadeja/monskills (gas, block states, why-monad)
+- Anthropic skills: github.com/anthropics/skills (`claude-api` tool use and model notes, `frontend-design`, `webapp-testing`)
+- Monad docs (testnet, RPC differences, reserve balance), Replit docs (Agent skills, modes, deployments, secrets)
+- Envoi's own `src/policy-engine.js` (check and reason-code design)
+- The team's ENVOI_BUILD_SPEC.md, red-team review and casebook
+
+All code blocks were type-checked with TypeScript `--strict` against ethers 6.17 and @anthropic-ai/sdk 1.3. The signing, bouncer and dispute logic was run offline against the scenarios in the spec. Live Monad and LLM calls could not be tested from the review sandbox; run `/api/selftest` on Replit at Gate 1.
