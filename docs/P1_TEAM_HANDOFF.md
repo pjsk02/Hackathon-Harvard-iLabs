@@ -18,17 +18,35 @@ Prepared for Aman Upadhyay, Jay (P2), and Rachel (P3).
 These are explicit dependencies, not completed protections:
 
 1. The current gateway still compares timestamps. The helper and P1 context adapter do not fix `/api/act` by themselves.
-2. The current shared state lacks a generation token. P1 detects ordinary resets after completion and changed object references, but cannot detect every empty-session reset in flight without the P3 hook.
+2. This P1 branch still has the older shared state. P3 has now supplied reset-generation guards on upstream `main`; integrate them and adapt P1 to the actual `getResetGeneration()` name rather than asking P3 to rebuild them. The combined implementation has not been tested here.
 3. The current agent uses canned proposals. Forced-request verification establishes enforcement, not live LLM behavior.
 4. Upstream UI changes and upload support were inspected, not merged into this P1 branch.
 5. Server-maintained request history is mutable and lost on reset/restart; there are no on-chain receipt commitments or independently provable request timestamps.
 
-## Proposed internal interface: agree together before merging
+## P3 reset interface now available upstream
 
-Public Receipt/Slip JSON remains unchanged. Add to P3's state module:
+Rachel deliberately restored temporary P1 stubs on `main` so Aman's verified implementation remains authoritative. Integrating the latest P3 work must preserve the P1 chain modules, not replace them with those stubs.
+
+Public Receipt/Slip JSON remains unchanged. P3's actual state interface is:
 
 ```ts
-getGeneration(): number
+getResetGeneration(): number
+isCurrentGeneration(expected: number): boolean
+assertCurrentGeneration(expected: number): void
+withResetGeneration<T>(expected: number, work: () => T): T
+addSlip(slip: Slip, expectedGeneration?: number): Slip
+addReceipt(receipt: NewReceipt, expectedGeneration?: number): Receipt
+```
+
+P3 mounts request-generation middleware before the API routers. Its state writes reject stale request generations, including attempts to override an old request context with a fresh explicit token.
+
+**P1 compatibility step still required:** `permission-service.ts` currently expects the proposed `getGeneration()` name. Adapt it to P3's actual interface, capture generation before the first await, include it in retained operation identity, and check it before returning a cached/reconciled result. Pass the captured generation explicitly for writes outside an API request. Do not rename P3's implementation just to match the earlier proposal.
+
+## Original request evidence still needs agreement
+
+The original block/permission snapshot is a separate requirement from reset generation. The following hook remains proposed; it is not supplied by the inspected P3 state implementation:
+
+```ts
 getRequestContext(receiptId: string): OriginalRequestContext | undefined
 ```
 
@@ -51,13 +69,13 @@ getRequestContext(receiptId: string): OriginalRequestContext | undefined
 }
 ```
 
-The P1 service automatically consumes those optional state exports when present. If the context hook exists but a request's evidence is missing/mismatched, it fails closed. Tests inject the proposed interface; that is not evidence the existing state module already implements it.
+If the context hook exists but a request's evidence is missing/mismatched, P1 fails closed. Tests inject the originally proposed interfaces; they do not establish compatibility with the newly delivered P3 state implementation. Reconcile names and run offline integration tests before claiming the reset issue is closed.
 
 ### Rachel / P3
 
-- Increment generation monotonically on every Reset, including when state is already empty; do not reset generation to zero alongside receipt numbering.
+- Preserve the already-delivered monotonic reset generation and request-scoped state-write guards; P1/P2 should consume them.
 - Retain a deep snapshot of request context keyed by generation and receipt ID. Clearing UI state cannot clear the ledger's unresolved transaction or replenish its spending budget.
-- Provide generation-checked state writes and prevent old browser refresh results from repainting a new session.
+- Verify the combined server and browser behavior so old refresh results cannot repaint a new session.
 - Keep fixed public mandate/action IDs; use internal generation/request identity for history.
 - Preserve new stage UI work and clear mock-mode badges. For block-order mode, use verified check results rather than strictly greater timestamp seconds to label a late amendment.
 - Treat a verification outage as unavailable evidence, not automatically “permission added after request.”
@@ -72,6 +90,18 @@ The P1 service automatically consumes those optional state exports when present.
 - Use `stampMatchesRequest` with evidence looked up by the candidate stamp's transaction hash. Compare block numbers, including equal-timestamp blocks.
 - Check generation again before protected-data access and before publishing the receipt. Wrap the action pipeline with `withChainDeadline` if applying a whole-action budget.
 - Keep all five checks ordered. The P1 dispute records success only when signed/agent/valid/scope pass, stamped fails for genuinely late evidence, and no data is returned.
+
+## Rachel's additional coordination notes
+
+- P2 remains Jay's workstream. An offer from P3's agent to implement Claude is not a reassignment; coordinate explicitly before overlapping those files.
+- The current P1 flow anchors original and amended permissions only. It does not record every allowed/blocked attempt on Monad, and this note does not expand that scope.
+- Keep `Receipt.explorerUrl` pointing at the permission checked. If attempt anchoring is explicitly added, agree a separate optional field with all three owners, for example `anchor?: Anchor | null`. Only then should the dashed blocked-request marker link to its own transaction.
+- Attempt anchoring would require a new transaction allowance and decisions about what evidence is committed and when; the initial five-transaction allowance is already consumed.
+- Rachel requests no elapsed-time/bracket display for that extension. Block ordering remains a backend rule regardless of presentation.
+- Rachel reports that the original Word report's instruction is visible black text on yellow highlighting; her alternative sample uses white 1pt text. Match the demo narration to the selected file. Those upload interactions were not verified in this P1 branch.
+- Browser `?mock=1` is a labeled timing rehearsal, not evidence of live Monad or live Claude.
+- Neither issuer secrets nor deployment secrets travel in Git. Configure and verify them separately in each target environment; do not copy them into code or documents.
+- P3 removed `MOCK_CHAIN` from its development configuration. Do not restore mock mode to hide its expected “not built yet” error while P1 is still awaiting integration.
 
 ## Shared acceptance gates
 

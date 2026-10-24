@@ -57,7 +57,7 @@ The service keeps private signed snapshots, rejects changes to the published ori
 
 `withChainDeadline` propagates an absolute budget through nested calls, including the existing evaluator's ledger lookup. This bounds the P1 issue/dispute RPC pipeline, not browser animation time or the unchanged P2 `/api/act` pipeline. Pending signed operations survive timeouts for retry in the same process.
 
-**Still outstanding:** reliable Reset during an initially empty session's first issuance requires Rachel's `getGeneration()` hook. Without it, P1 retains the legacy object-reference checks and detects ordinary completed-run resets, but cannot observe every empty-session reset. Tests with injected generation/context adapters verify the proposed integration, not the unchanged shared state/gateway.
+**Still outstanding:** reliable Reset during an initially empty session's first issuance requires the shared reset-generation integration. P3 has now delivered `getResetGeneration()` and guarded writes on upstream `main`, while this P1 adapter still expects the originally proposed `getGeneration()` name. Reconcile that name and integrate the delivered P3 code before claiming full protection. Without the hook, P1 retains legacy object-reference checks and detects ordinary completed-run resets, but cannot observe every empty-session reset. Injected-adapter tests do not verify the combined implementation.
 
 ## Jay / P2 handoff: block ordering is not integrated yet
 
@@ -78,10 +78,12 @@ The dispute route uses a bounded next-second wait only when retained request con
 ## Rachel / P3 handoff
 
 - Agree request-reference/evidence fields in the shared types with both builders.
-- Proposed internal state hooks are `getGeneration(): number`, incremented monotonically by Reset, and `getRequestContext(receiptId): OriginalRequestContext | undefined`. The existing state namespace is consumed directly; P1 automatically uses these exports once available. Agree this interface with Jay first.
+- P3's delivered reset API is `getResetGeneration()`, `isCurrentGeneration()`, `assertCurrentGeneration()`, `withResetGeneration()` and guarded writes with optional explicit generation. P1 must adapt to that actual API; its earlier `getGeneration()` proposal is not the name P3 shipped.
+- `getRequestContext(receiptId): OriginalRequestContext | undefined` remains a separate proposed evidence-storage hook to agree with Jay and Rachel. Do not confuse request-generation context with original chain-block/permission evidence.
 - P1 checks generation after asynchronous work and before publishing state when that hook exists. Jay must independently carry the same generation through model calls and before protected-data access; Rachel must guard stale browser refreshes.
 - The UI can start without a wallet key; issuer health is null until configured. Signing must fail explicitly until credentials are supplied.
 - Workspace and published deployments need their own verified configuration.
+- Preserve existing permission explorer links. Any future per-attempt anchoring needs a separate additive receipt field, agreed scope and a new transaction allowance.
 
 ## Evidence limits
 

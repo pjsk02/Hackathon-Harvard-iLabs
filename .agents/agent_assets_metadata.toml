@@ -28,3 +28,31 @@ mtime_ms = 1792854620819
 storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:27d20b68-9e8c-4ebe-bd58-28e2147dcdeb/c9a02f43-f71f-4533-a805-f73a4966d1b9/c9809e21-364e-4c23-9f64-e1ceed813d8f"
 storage_version_token = "1792854656954126"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "NAf4nm3BA8k2ueI4xU23a"
+uri = "file://docs/P1_LIVE_VERIFICATION.md"
+type = "text"
+title = "P1 live verification — five Monad transactions"
+description = "Verified transaction links, measured timings, gas spent, test results and remaining limitations."
+logical_id = "83e09436-12db-49ed-ac89-8610a4a75b11"
+content_hash = "sha256:056bb029650fb074d06e1d27d313c1bd958bb6e7393e1f634ced579c57de38c4"
+size = 5224
+mtime_ms = 1792856268759
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:27d20b68-9e8c-4ebe-bd58-28e2147dcdeb/83e09436-12db-49ed-ac89-8610a4a75b11/5e7cb9cc-738d-42fa-9f2b-3408618d13fe"
+storage_version_token = "1792856356648262"
+content_type = "text/markdown"
+
+[[outputs]]
+id = "imS9IM4z2Y1-4DwR9zWRs"
+uri = "file://docs/P1_TEAM_HANDOFF.md"
+type = "text"
+title = "P1 handoff for Jay and Rachel"
+description = "Implemented P1 behavior and the exact remaining gateway, session and UI integration requirements."
+logical_id = "fc9ea298-c447-4656-8a0f-f756f06bbc93"
+content_hash = "sha256:9edf6d10589361c8c981105be6ab21b78a4a0ed8447f1add76e7800a1b41b253"
+size = 6387
+mtime_ms = 1792856067087
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:27d20b68-9e8c-4ebe-bd58-28e2147dcdeb/fc9ea298-c447-4656-8a0f-f756f06bbc93/ffdb8be8-369d-4b1d-949c-38d4ccecb192"
+storage_version_token = "1792856357217942"
+content_type = "text/markdown"

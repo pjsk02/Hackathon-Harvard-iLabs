@@ -18,3 +18,9 @@ Commit this project's P1 work under the user's Git identity, not Replit Agent.
 **Why:** The user explicitly requested their own attribution for both the plan and the P1 branch push.
 
 **How to apply:** Verify the author and committer of new commits before pushing. Do not add a Replit Agent co-author attribution.
+
+Preserve the verified P1 chain implementation when integrating P3 updates; do not replace it with teammate-provided scaffold stubs.
+
+**Why:** Rachel's agent deliberately withdrew overlapping P1 implementation and restored placeholders so Aman's implementation would be authoritative.
+
+**How to apply:** Review owned-file changes during integration and consume the actual interfaces delivered by the other owners, rather than assuming an earlier P1 interface proposal was adopted verbatim.

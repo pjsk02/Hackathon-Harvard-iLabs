@@ -2,3 +2,4 @@
 - [Envoi integrations](envoi-team.md) — Check current integration availability rather than assuming a teammate's environment matches this workspace.
 - [Vite middleware quirks](vite-middleware.md) — don't pass `root` to createServer (overrides client root → 404); prefer server.ws over deprecated hmr.server.
 - [Live test approval](live-test-approval.md) — Count approved testnet writes across restarts; pause sends during development hot reload.
+- [Demo evidence semantics](demo-evidence-semantics.md) — Permission links are not attempt proofs; distinguish visible-note, hidden-note and mock rehearsals.
