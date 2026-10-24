@@ -2,7 +2,7 @@
 // It mirrors the contract shapes so every beat can be rehearsed with no server.
 // It carries NO protected data: allowed receipts return data: null.
 import type {
-  ActRequest, AgentRunResponse, Check, Receipt, ReportId, Slip, StateResponse, UploadedReport,
+  ActRequest, AgentRunResponse, Check, HealthResponse, Receipt, ReportId, SelftestResponse, Slip, StateResponse, UploadedReport,
 } from "@shared/contract";
 import { AGENT_ID, MANDATE_ID } from "@shared/contract";
 import { consulting } from "@shared/scenarios";
@@ -106,6 +106,12 @@ export const mockApi = {
     };
     receipts = [r, ...receipts];
     return r;
+  },
+  async health(): Promise<HealthResponse> {
+    return { ok: true, mockChain: true, issuer: null, rpc: "mock" };
+  },
+  async selftest(): Promise<SelftestResponse> {
+    throw new Error("The self-test does not run in mock mode.");
   },
   async reset(): Promise<{ ok: true }> {
     slips = [];

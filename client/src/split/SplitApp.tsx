@@ -39,6 +39,7 @@ export default function SplitApp() {
   const [granting, setGranting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resetArmed, setResetArmed] = useState(false);
+  const [mockChain, setMockChain] = useState(false);
   const token = useRef(0); // bumps on reset so a running choreography stops
 
   const refresh = useCallback(async () => {
@@ -54,6 +55,7 @@ export default function SplitApp() {
 
   useEffect(() => {
     refresh().then((s) => s && setRevealed(new Set(s.receipts.map((r) => r.id))));
+    api.health().then((h) => setMockChain(h.mockChain)).catch(() => setMockChain(false));
   }, [refresh]);
 
   const push = (item: FeedItem) => setFeed((f) => [...f, item]);
@@ -219,9 +221,9 @@ export default function SplitApp() {
   const keys: { key: string; label: string; run: () => void; enabled: boolean; why?: string }[] = [
     { key: "1", label: preview === "closed" ? "Open report" : preview === "open" ? "Show hidden" : "Close report", run: actions.preview, enabled: true },
     { key: "2", label: "Grant", run: actions.grant, enabled: !original, why: "Already granted" },
-    { key: "3", label: "Ask", run: () => actions.ask("clean"), enabled: !!original, why: "Grant first" },
-    { key: "4", label: "Ask v2", run: () => actions.ask("poisoned"), enabled: !!original, why: "Grant first" },
-    { key: "5", label: "Force", run: actions.force, enabled: !!original, why: "Grant first" },
+    { key: "3", label: "Ask · clean report", run: () => actions.ask("clean"), enabled: !!original, why: "Grant first" },
+    { key: "4", label: "Ask · hidden note", run: () => actions.ask("poisoned"), enabled: !!original, why: "Grant first" },
+    { key: "5", label: "Force comp request", run: actions.force, enabled: !!original, why: "Grant first" },
     { key: "6", label: "Dispute", run: actions.dispute, enabled: hasBlocked && !disputed, why: hasBlocked ? "Already disputed" : "Block a request first" },
     { key: "0", label: resetArmed ? "Press 0 again" : "Reset", run: actions.reset, enabled: true },
   ];
@@ -251,6 +253,7 @@ export default function SplitApp() {
           <img src="/envoi-logo.png" alt="" />
           <span>Envoi</span>
           {isMock && <span className="mock-badge">{COPY.mock}</span>}
+          {!isMock && mockChain && <span className="mock-badge">{COPY.mockChain}</span>}
         </div>
         <ol className="stage-steps">
           {COPY.steps.map((s, i) => {

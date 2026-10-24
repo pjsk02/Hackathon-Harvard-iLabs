@@ -1,6 +1,6 @@
 // Thin fetch wrapper. Errors come back as { error: "plain sentence" }.
 import type {
-  ActRequest, AgentRunResponse, Receipt, ReportId, Slip, StateResponse, UploadedReport,
+  ActRequest, AgentRunResponse, HealthResponse, Receipt, ReportId, SelftestResponse, Slip, StateResponse, UploadedReport,
 } from "@shared/contract";
 import { mockApi } from "./mock";
 
@@ -31,6 +31,8 @@ const realApi = {
   act: (req: ActRequest) => call<Receipt>("POST", "/api/act", req),
   dispute: () => call<Receipt>("POST", "/api/dispute"),
   reset: () => call<{ ok: true }>("POST", "/api/reset"),
+  health: () => call<HealthResponse>("GET", "/api/health"),
+  selftest: () => call<SelftestResponse>("GET", "/api/selftest"),
 };
 
 export type Api = typeof realApi;

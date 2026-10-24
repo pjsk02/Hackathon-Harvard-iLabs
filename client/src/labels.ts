@@ -48,6 +48,7 @@ export const COPY = {
   upload: { title: "Attach a report", sample: "Sample report with hidden text ↓" },
   forced: "forced",
   mock: "MOCK",
+  mockChain: "MOCK CHAIN",
 };
 
 /** Request bubble text, e.g. "Send me employee compensation." */
