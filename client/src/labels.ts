@@ -45,6 +45,7 @@ export const COPY = {
   addedAfter: "Added after the request",
   previewLabel: "HIDDEN TEXT · only the AI sees it",
   send: "Send",
+  upload: { title: "Attach a report", sample: "Sample report with hidden text ↓" },
   forced: "forced",
   mock: "MOCK",
 };

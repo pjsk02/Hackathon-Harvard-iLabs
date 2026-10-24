@@ -3,20 +3,23 @@
 import { useEffect, useRef } from "react";
 import { AGENT, CLIENT, COPY, FIRM, requestText } from "../labels";
 import AttachmentPreview from "./AttachmentPreview";
-import type { FeedItem, Preview, ReportId } from "./types";
+import type { FeedItem, Preview } from "./types";
+import { ACCEPT, type Attachment, type Part } from "./upload";
 
 type Props = {
   feed: FeedItem[];
   preview: Preview;
-  attached: ReportId;
-  report: string;
+  attachment: Attachment;
+  previewParts: Part[];
   canSend: boolean;
   onSend: () => void;
+  onUpload: (file: File) => void;
   onClosePreview: () => void;
 };
 
-export default function BainePane({ feed, preview, attached, report, canSend, onSend, onClosePreview }: Props) {
+export default function BainePane({ feed, preview, attachment, previewParts, canSend, onSend, onUpload, onClosePreview }: Props) {
   const end = useRef<HTMLDivElement>(null);
+  const picker = useRef<HTMLInputElement>(null);
   useEffect(() => {
     end.current?.scrollIntoView({ block: "end", behavior: "smooth" });
   }, [feed]);
@@ -37,13 +40,28 @@ export default function BainePane({ feed, preview, attached, report, canSend, on
       <div className="composer">
         <div className="composer-field">
           <span>{COPY.analyst}</span>
-          <span className="clip">📎 {COPY.attachments[attached]}</span>
+          <span className="clip">📎 {attachment.fileName}</span>
         </div>
+        <input
+          ref={picker}
+          type="file"
+          accept={ACCEPT}
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onUpload(f);
+            e.target.value = "";
+          }}
+        />
+        <button className="attach" onClick={() => picker.current?.click()} disabled={!canSend} title={COPY.upload.title} aria-label={COPY.upload.title}>
+          📎
+        </button>
         <button onClick={onSend} disabled={!canSend}>{COPY.send}</button>
       </div>
+      <a className="sample-link" href="/samples/Q3-Review-v2.html" download>{COPY.upload.sample}</a>
 
       {preview !== "closed" && (
-        <AttachmentPreview report={report} revealed={preview === "revealed"} onClose={onClosePreview} />
+        <AttachmentPreview fileName={attachment.fileName} parts={previewParts} revealed={preview === "revealed"} onClose={onClosePreview} />
       )}
     </section>
   );

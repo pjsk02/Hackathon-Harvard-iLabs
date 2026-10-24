@@ -1,6 +1,6 @@
 // Thin fetch wrapper. Errors come back as { error: "plain sentence" }.
 import type {
-  ActRequest, AgentRunResponse, Receipt, ReportId, Slip, StateResponse,
+  ActRequest, AgentRunResponse, Receipt, ReportId, Slip, StateResponse, UploadedReport,
 } from "@shared/contract";
 import { mockApi } from "./mock";
 
@@ -26,7 +26,8 @@ async function call<T>(method: "GET" | "POST", url: string, body?: unknown): Pro
 const realApi = {
   state: () => call<StateResponse>("GET", "/api/state"),
   sign: (scenarioId: string) => call<Slip>("POST", "/api/slips", { scenarioId }),
-  run: (reportId: ReportId) => call<AgentRunResponse>("POST", "/api/agent/run", { reportId }),
+  run: (reportId: ReportId, upload?: UploadedReport) =>
+    call<AgentRunResponse>("POST", "/api/agent/run", upload ? { reportId, upload } : { reportId }),
   act: (req: ActRequest) => call<Receipt>("POST", "/api/act", req),
   dispute: () => call<Receipt>("POST", "/api/dispute"),
   reset: () => call<{ ok: true }>("POST", "/api/reset"),

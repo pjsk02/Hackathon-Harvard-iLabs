@@ -2,7 +2,7 @@
 // It mirrors the contract shapes so every beat can be rehearsed with no server.
 // It carries NO protected data: allowed receipts return data: null.
 import type {
-  ActRequest, AgentRunResponse, Check, Receipt, ReportId, Slip, StateResponse,
+  ActRequest, AgentRunResponse, Check, Receipt, ReportId, Slip, StateResponse, UploadedReport,
 } from "@shared/contract";
 import { AGENT_ID, MANDATE_ID } from "@shared/contract";
 import { consulting } from "@shared/scenarios";
@@ -74,9 +74,11 @@ export const mockApi = {
     slips = [...slips, slip];
     return slip;
   },
-  async run(reportId: ReportId): Promise<AgentRunResponse> {
+  async run(reportId: ReportId, upload?: UploadedReport): Promise<AgentRunResponse> {
     await wait(3000);
-    const calls = reportId === "poisoned" ? [consulting.allowed.name, consulting.forbidden.name] : [consulting.allowed.name];
+    // Mock only: pretend the AI takes any bait that mentions compensation or salaries.
+    const baited = upload ? /compensation|salar/i.test(upload.text) : reportId === "poisoned";
+    const calls = baited ? [consulting.allowed.name, consulting.forbidden.name] : [consulting.allowed.name];
     return { transcript: "(mock)", proposedCalls: calls, receipts: calls.map((c) => act(c, "agent")) };
   },
   async act(req: ActRequest): Promise<Receipt> {

@@ -11,11 +11,19 @@ import BainePane from "./BainePane";
 import ChainColumn from "./ChainColumn";
 import MorganPane from "./MorganPane";
 import type { FeedItem, Preview, Stage } from "./types";
+import { type Attachment, partsFromScenario, readUpload } from "./upload";
 import "./split.css";
 
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const sleep = (ms: number) => (reducedMotion() ? Promise.resolve() : new Promise((r) => setTimeout(r, ms)));
 let seq = 0;
+
+/** Atlas's own words from a real model run; stub and mock text is skipped. */
+function liveWords(transcript: string): string | null {
+  const t = transcript.trim();
+  if (!t || /^\((stub|mock)\)/i.test(t)) return null;
+  return t.length > 160 ? `${t.slice(0, 157)}…` : t;
+}
 const nextId = () => `f${++seq}`;
 
 export default function SplitApp() {
@@ -25,7 +33,8 @@ export default function SplitApp() {
   const [pulse, setPulse] = useState<Slip["label"] | null>(null);
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const [preview, setPreview] = useState<Preview>("closed");
-  const [attached, setAttached] = useState<ReportId>("clean");
+  const builtin = (reportId: ReportId): Attachment => ({ kind: "builtin", reportId, fileName: COPY.attachments[reportId] });
+  const [attached, setAttached] = useState<Attachment>(builtin("clean"));
   const [busy, setBusy] = useState(false);
   const [granting, setGranting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -106,7 +115,7 @@ export default function SplitApp() {
 
   const actions = {
     preview: () => {
-      setAttached("poisoned");
+      if (attached.kind === "builtin") setAttached(builtin("poisoned"));
       setPreview((p) => (p === "closed" ? "open" : p === "open" ? "revealed" : "closed"));
     },
     grant: () => beat(async (alive) => {
@@ -120,20 +129,35 @@ export default function SplitApp() {
       await refresh();
       push({ kind: "reply", id: nextId(), tone: "good", text: COPY.grant.reply, to: "agent" });
     }),
-    ask: (reportId: ReportId) => beat(async (alive) => {
+    upload: async (file: File) => {
+      setError(null);
+      try {
+        setAttached(await readUpload(file));
+        setPreview("open");
+      } catch (e) {
+        setError((e as Error).message);
+      }
+    },
+    ask: (which: ReportId | Attachment) => beat(async (alive) => {
+      const att = typeof which === "string" ? builtin(which) : which;
       setPreview("closed");
-      setAttached(reportId);
-      const file = COPY.attachments[reportId];
+      setAttached(att);
+      const file = att.fileName;
       push({ kind: "analyst", id: nextId(), text: COPY.analyst, attachment: file });
       const statusId = nextId();
       push({ kind: "status", id: statusId, text: `Reading ${file}…`, done: false });
       setStage(null);
-      const res = await api.run(reportId);
+      const res = att.kind === "upload"
+        ? api.run("poisoned", { fileName: att.fileName, text: att.text })
+        : api.run(att.reportId);
+      const out = await res;
       if (!alive()) return;
       patch(statusId, { text: `✓ Read ${file}`, done: true });
+      const said = liveWords(out.transcript);
+      if (said) push({ kind: "answer", id: nextId(), text: said });
       await refresh();
       await sleep(300);
-      const ordered = [...res.receipts].sort((a, b) => Number(b.decision === "ALLOWED") - Number(a.decision === "ALLOWED"));
+      const ordered = [...out.receipts].sort((a, b) => Number(b.decision === "ALLOWED") - Number(a.decision === "ALLOWED"));
       let earlier: Stage["earlier"] = null;
       for (const r of ordered) {
         if (!alive()) return;
@@ -181,7 +205,7 @@ export default function SplitApp() {
         setPulse(null);
         setRevealed(new Set());
         setPreview("closed");
-        setAttached("clean");
+        setAttached(builtin("clean"));
         setError(null);
       } catch (e) {
         setError((e as Error).message);
@@ -245,10 +269,11 @@ export default function SplitApp() {
         <BainePane
           feed={feed}
           preview={preview}
-          attached={attached}
-          report={data.scenario.reports.poisoned}
+          attachment={attached}
+          previewParts={attached.kind === "upload" ? attached.parts : partsFromScenario(data.scenario.reports[attached.reportId])}
           canSend={!!original && !busy}
           onSend={() => actions.ask(attached)}
+          onUpload={actions.upload}
           onClosePreview={() => setPreview("closed")}
         />
         <ChainColumn slips={data.slips} blocked={blocked} pulse={pulse} />

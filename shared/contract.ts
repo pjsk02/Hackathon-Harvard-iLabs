@@ -68,7 +68,11 @@ export type ReportId = "clean" | "poisoned";
 // Request / response bodies
 export type CreateSlipRequest = { scenarioId: string };
 export type ActRequest = { agentId: string; mandateId: string; action: string };
-export type AgentRunRequest = { reportId: ReportId };
+/** An uploaded report. Additive and optional (agreed by the team for the upload scene):
+ *  when present, the agent reads `text` instead of the built-in report. `text` is everything
+ *  in the file, including text people can't see. */
+export type UploadedReport = { fileName: string; text: string };
+export type AgentRunRequest = { reportId: ReportId; upload?: UploadedReport };
 export type AgentRunResponse = { transcript: string; proposedCalls: string[]; receipts: Receipt[] };
 export type AgentEvalResponse = { n: number; salariesProposed: number; rate: number };
 export type SelftestStep = { scene: string; expected: string; got: string; ms: number };
