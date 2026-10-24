@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { pool, freshDocument, inWorkspace, load, reserve, checkpoint, finish, type Workspace } from "./repository";
 import { ACTIONS, validSelection } from "../../shared/workspace";
-import { createGateway } from "../gateway/workspace-gateway";
+import { createGateway, scopeViolationRecorder } from "../gateway/workspace-gateway";
 import * as state from "../state";
 import { AGENT_ID, CHAIN_ID } from "../../shared/contract";
 import type { Slip } from "../../shared/contract";
@@ -80,12 +80,13 @@ test("six-action gateway allows exact scope and never reads data on denial; hist
     const slip: Slip = {mandate:{mandateId:"version-1",issuer:"0x"+"1".repeat(40),agentId:AGENT_ID,resource:"northwind-data-api",scenarioId:"consulting",allowedActions:ACTIONS.map(a=>a.id),issuedAt:1,expiresAt:1000,nonce:"12345678"},signature:"offline",digest:"0x"+"1".repeat(64),label:"Original",anchor:null};
     state.addSlip(slip);
     assert.throws(()=>state.addSlip(structuredClone(slip)),/cannot be replaced/);
-    let reads = 0;
+    let reads = 0, publicRecords = 0;
     const gateway = createGateway({state,
       latestReference:async()=>({chainId:CHAIN_ID,blockNumber:10,blockHash:"0x"+"2".repeat(64),blockTimestamp:100}),
       evaluate:async(s,action)=>["signed","agent","valid","stamped","scope"].map(id=>({id:id as any,label:id,detail:"",pass:id!=="scope" || s.mandate.allowedActions.includes(action)})),
-      record:async receipt=>receipt, readData:action=>{ reads++; return [{action}]; }});
+      record:scopeViolationRecorder(async receipt=>{publicRecords++;return receipt;}), readData:action=>{ reads++; return [{action}]; }});
     for (const action of ACTIONS) assert.equal((await gateway({agentId:AGENT_ID,mandateId:"version-1",action:action.id},"forced")).decision,"ALLOWED");
+    assert.equal(publicRecords,0,"Clean access must never call the Monad recorder");
     const denied = structuredClone(slip); denied.mandate.mandateId="version-2"; denied.mandate.allowedActions=[];
     state.addSlip(denied);
     for (const action of ACTIONS) {
@@ -93,6 +94,11 @@ test("six-action gateway allows exact scope and never reads data on denial; hist
       assert.equal(receipt.decision,"BLOCKED"); assert.equal(receipt.data,null);
     }
     assert.equal(reads,6);
+    assert.equal(publicRecords,6,"Each outside-scope attempt calls the recorder once");
+    const expired = structuredClone(state.listReceipts()[0]);
+    expired.checks = expired.checks.map(c=>({...c,pass:c.id !== "valid"}));
+    await scopeViolationRecorder(async receipt=>{publicRecords++;return receipt;})(expired,state.getRequestContext(expired.id)!,randomUUID());
+    assert.equal(publicRecords,6,"Non-scope denial must not call the recorder");
     assert.equal(state.getSlip("version-1")!.mandate.allowedActions.length,6);
   });
 });
@@ -113,6 +119,10 @@ test("HTTP sessions persist edits, reject cross-origin writes and isolate reset"
     return cookie.split(";")[0];
   }
   const a = await open(), b = await open();
+  const emptyDraft = await fetch(`${base}/api/workspace/draft`, {method:"POST",headers:{
+    cookie:a,origin:base,"Content-Type":"application/json","Idempotency-Key":randomUUID(),
+  },body:JSON.stringify({permissions:["read_revenue"],task:"",report:null})});
+  assert.equal(emptyDraft.status,200,"Permissions can be saved before writing a chat message");
   const send = (cookie:string,path:string,body:unknown,origin=base) => fetch(`${base}/api/workspace${path}`,{method:"POST",headers:{"Content-Type":"application/json",Origin:origin,Cookie:cookie,"Idempotency-Key":randomUUID()},body:JSON.stringify(body)});
   try {
     const draft = {permissions:["read_revenue"],task:"Retained API request",report:{fileName:"input.txt",text:"extracted content"}};

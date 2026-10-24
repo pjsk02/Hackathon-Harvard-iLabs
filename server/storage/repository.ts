@@ -11,7 +11,7 @@ export type Document = { state: StateSnapshot; draft: Draft; conversations: Conv
 export type Workspace = { id: string; generation: number; revision: number; document: Document; active_operation: string | null };
 export type Operation = { id: string; workspace_id: string; generation: number; kind: string; signature: string; status: string; detail: string; payload: any; owner: string; reused?: boolean };
 export const freshDocument = (): Document => ({
-  state: emptySnapshot(), draft: { permissions: ["read_regional_margins"], task: "Compare regional profitability.", report: null }, conversations: [],
+  state: emptySnapshot(), draft: { permissions: ["read_regional_margins"], task: "", report: null }, conversations: [],
 });
 export const hash = (text: string) => createHash("sha256").update(text).digest("hex");
 export async function transaction<T>(work: (client: pg.PoolClient) => Promise<T>): Promise<T> {

@@ -64,7 +64,15 @@ export function createGateway(deps: Dependencies) {
   };
 }
 
+/** Local receipts are retained for every decision; only scope violations are public. */
+export function scopeViolationRecorder(record: typeof attempts.record): typeof attempts.record {
+  return async (receipt, context, attemptId) => {
+    const outsideScope = receipt.kind === "action" && receipt.decision === "BLOCKED" &&
+      receipt.checks.some(check => check.id === "scope" && !check.pass);
+    return outsideScope ? record(receipt, context, attemptId) : receipt;
+  };
+}
 export const act = createGateway({
-  state, latestReference: chain.latestReference, evaluate, record: attempts.record,
+  state, latestReference: chain.latestReference, evaluate, record: scopeViolationRecorder(attempts.record),
   readData: readEvaluationData,
 });

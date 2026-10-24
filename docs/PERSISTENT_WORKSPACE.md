@@ -12,6 +12,8 @@ Every external operation has a durable UUID and phase before external execution.
 
 All six datasets are fictional server-side evaluation data, not live integrations. Model tools only propose; the original five deterministic checks control every result. Uploaded report text is untrusted. All extracted text persists; original file formatting and hidden-format metadata do not.
 
+The product now uses sequential Permissions → Chat → Result screens, not simultaneous panels. Public attempt recording is restricted to BLOCKED receipts with a failed scope check. ALLOWED results and other denials retain local receipts without a new request transaction. Historical public records remain readable. Permission stamps remain a separate signing operation. Visible company names are Goldman Stanley and McBain.
+
 ## Design source assessment
 
 The public 21st.dev community component directory was accessible and assessed on 2026-10-24. It offers React/Next.js components, including forms, buttons and AI chats. No 21st integration is connected. No specific component's redistribution license or accessibility guarantees were established, so no third-party component source was copied or added. Native checkboxes, details, labels, buttons and tables meet the lightweight interaction needs without another dependency or subscription.

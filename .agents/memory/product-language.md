@@ -8,6 +8,8 @@ shared-session/restart-reset instructions; the user explicitly requested their r
 The fictional client is Goldman Stanley and the consulting
 firm is McBain. The user subsequently requested their own document uploads for
 chat and explicitly no download-file feature; do not add sample downloads or exports.
+Newly opened chat must be empty: no seeded prompt, example attachment, or restored
+transcript in the active chat. Persisted conversations belong in History.
 
 **Why:** the user explicitly requested this product positioning and these names.
 

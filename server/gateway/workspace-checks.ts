@@ -49,7 +49,7 @@ export async function evaluate(
   }
 
   const checks: Check[] = [
-    { id: "signed", label: "Signed by the client", pass: signer.toLowerCase() === issuer, detail: "Not signed by Northwind" },
+    { id: "signed", label: "Signed by the client", pass: signer.toLowerCase() === issuer, detail: "Not signed by Goldman Stanley" },
     { id: "agent", label: "The right AI", pass: agentId === m.agentId, detail: "This slip belongs to a different AI" },
     { id: "valid", label: "Still valid", pass: m.issuedAt <= actionTime && actionTime < m.expiresAt, detail: "This slip has expired or is not active yet" },
     { id: "stamped", label: "Stamped before request", pass: stampedPass, detail: stampedDetail },

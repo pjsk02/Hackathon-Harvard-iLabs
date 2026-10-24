@@ -27,7 +27,8 @@ export function useWorkspace() {
     setData(next);
     setUncertain(false);
     if (!hydrated.current || hydrate) {
-      setDraft(next.draft);
+      // A newly opened chat never silently reuses an old prompt or attachment.
+      setDraft(hydrated.current ? next.draft : { ...next.draft, task: "", report: null });
       setDirty(false);
       hydrated.current = true;
     }
@@ -35,7 +36,7 @@ export function useWorkspace() {
   }, []);
   const reload = useCallback(async () => {
     setError(null);
-    try { await refresh(); } catch (e) { setError((e as Error).message); }
+    try { await refresh(); } catch (e) { setUncertain(true); setError((e as Error).message); }
   }, [refresh]);
   useEffect(() => { void reload(); }, [reload]);
 

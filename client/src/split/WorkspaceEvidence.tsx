@@ -38,17 +38,34 @@ export function SlipHistory({ slips }: { slips: Slip[] }) {
     {slip.anchor && <p className="fine">Monad testnet · block {slip.anchor.blockNumber}<br /><PublicRecord url={slip.anchor.explorerUrl} /></p>}
   </details>)}</>;
 }
+export function matchedAttemptUrl(receipt: Receipt): string | null {
+  if (!receipt.checks.some(check => check.id === "scope" && check.pass === false)) return null;
+  const evidence = receipt.attemptEvidence;
+  if (!evidence || evidence.status !== "recorded") return null;
+  const record = evidence.record;
+  const url = safeExplorerUrl(evidence.anchor.explorerUrl);
+  if (!url || !/^0x[a-fA-F0-9]{64}$/.test(evidence.txHash) ||
+    evidence.anchor.txHash !== evidence.txHash ||
+    new URL(url).pathname.replace(/\/$/, "") !== `/tx/${evidence.txHash}` ||
+    record.receiptId !== receipt.id || record.chainId !== 10143 ||
+    record.action !== receipt.action || record.agent !== receipt.agentId ||
+    record.source !== receipt.source || record.decision !== receipt.decision ||
+    record.checks.length !== receipt.checks.length ||
+    !receipt.checks.every(check => record.checks.some(item => item.id === check.id && item.pass === check.pass))) return null;
+  return url;
+}
 export function ReceiptDetail({ receipt }: { receipt: Receipt }) {
+  const scopeViolation = receipt.checks.some(check => check.id === "scope" && check.pass === false);
+  const transactionUrl = matchedAttemptUrl(receipt);
+  const pending = receipt.attemptEvidence?.status === "pending";
   return <article className="sheet">
     <span className="kicker">{actionLabel(receipt.action)}</span>
     <div className={`decision ${receipt.decision === "ALLOWED" ? "" : "blocked"}`}>{receipt.decision}</div>
     <p className="fine">{new Date(receipt.createdAt).toLocaleString()} · {receipt.source === "agent" ? "Agent request" : "Manual request"}<br />Permission: {receipt.mandateId}<br />Receipt: {receipt.id}</p>
     <ul className="checks">{receipt.checks.map(check => <li key={check.id}><span className={check.pass ? "good" : "bad"}>{check.pass ? "✓" : "×"} {check.label}</span><small>{check.detail}</small></li>)}</ul>
-    {receipt.decision === "ALLOWED" ? <ResultData data={receipt.data} /> : <p>Data never left Northwind.</p>}
-    <p className="fine"><PublicRecord url={receipt.explorerUrl} /></p>
-    {receipt.attemptEvidence && <div className="fine">Public record status: {receipt.attemptEvidence.status}
-      {"detail" in receipt.attemptEvidence && <p>{receipt.attemptEvidence.detail}</p>}
-      <PublicRecord url={receipt.attemptEvidence.anchor?.explorerUrl} />
-    </div>}
+    {receipt.decision === "ALLOWED" ? <ResultData data={receipt.data} /> : <div className="fine">Data never left Goldman Stanley.</div>}
+    <div className="fine" role="status">{!scopeViolation ? receipt.decision === "ALLOWED" ? "Within scope · no Monad transaction required." : "No scope violation · no Monad transaction required." : transactionUrl ? "Scope violation · transaction confirmed" : pending ? "Scope violation · transaction pending" : "Scope violation · transaction not recorded"}</div>
+    {transactionUrl && <a href={transactionUrl} target="_blank" rel="noopener noreferrer">View request transaction ↗</a>}
+    {scopeViolation && receipt.attemptEvidence && "detail" in receipt.attemptEvidence && <details><summary>Recording details</summary><div className="fine">{receipt.attemptEvidence.detail}</div></details>}
   </article>;
 }
