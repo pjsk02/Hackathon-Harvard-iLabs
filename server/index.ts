@@ -29,7 +29,9 @@ const server = createServer(app);
 if (isProd) {
   const dist = path.join(root, "dist/public");
   app.use(express.static(dist));
-  app.use((_req, res) => res.sendFile(path.join(dist, "index.html")));
+  // Anchor the relative file at the trusted build root. Absolute paths through
+  // a managed .codex checkout otherwise trigger send's hidden-path rejection.
+  app.use((_req, res) => res.sendFile("index.html", { root: dist }));
 } else {
   const { createServer: createVite } = await import("vite");
   const vite = await createVite({

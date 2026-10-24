@@ -108,7 +108,7 @@ async function harness(savedChat = false) {
     }
     await respond({ ok: true });
   });
-  await page.goto(process.env.UI_BASE_URL ?? "http://127.0.0.1:5000/", { waitUntil: "networkidle0" });
+  await page.goto(new URL("/workspace", process.env.UI_BASE_URL ?? "http://127.0.0.1:5000/").href, { waitUntil: "networkidle0" });
   await page.waitForSelector('input[type="checkbox"]');
   return { context, page, state, calls, errors, options };
 }

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ACTIONS, actionLabel, type Conversation } from "@shared/workspace";
 import type { UploadedReport } from "@shared/contract";
 import { ACCEPT, readUpload, type Part } from "./upload";
@@ -6,6 +6,8 @@ import { useWorkspace } from "./use-workspace";
 import { ReceiptDetail, SlipHistory } from "./WorkspaceEvidence";
 import { ChatEnforcement } from "./ChatEnforcement";
 import "./workspace.css";
+import { AtlasReply } from "./AtlasReply";
+import "./atlas-reply.css";
 
 type RequestInput = { task: string; report: UploadedReport | null };
 type RunInput = RequestInput & { permissionId: string; previous: string[] };
@@ -13,8 +15,8 @@ const QUICK_PROMPTS = ["Complete the request", "Verify this request", "Summarize
 
 export default function SplitApp() {
   const { data, draft, editDraft, busy, error, uncertain, reload, post } = useWorkspace();
-  const [step, setStep] = useState(0);
-  const [continued, setContinued] = useState(false);
+  const [step, setStep] = useState(new URLSearchParams(location.search).has("case") ? 1 : 0);
+  const [continued, setContinued] = useState(new URLSearchParams(location.search).has("case"));
   const [parts, setParts] = useState<Part[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -25,8 +27,9 @@ export default function SplitApp() {
   const messageInput = useRef<HTMLTextAreaElement>(null);
   const previousConversationIds = useRef<Set<string> | null>(null);
   if (data && !previousConversationIds.current) previousConversationIds.current = new Set(data.conversations.map(item => item.id));
-  const currentConversation = data?.conversations.filter(item => !previousConversationIds.current?.has(item.id)) ?? [];
-  const locked = busy || uploading;
+  const caseView = new URLSearchParams(location.search).has("case");
+  const currentConversation = data?.conversations.filter(item => caseView && data.currentTransaction ? data.currentTransaction.conversationIds.includes(item.id) : !previousConversationIds.current?.has(item.id)) ?? [];
+  const locked = busy || uploading || data?.currentTransaction?.status === "done";
   const unresolved = data?.operations.filter(op => !["complete", "completed", "confirmed", "recorded", "succeeded", "failed", "resolved", "cancelled"].includes(op.status)) ?? [];
   const paused = uncertain || unresolved.length > 0;
   const matchingSlip = data?.slips.slice().reverse().find(slip =>
@@ -47,6 +50,14 @@ export default function SplitApp() {
       previous: data?.conversations.filter(item => item.id !== conversation.id).map(item => item.id) ?? [] } : null);
     setStep(2);
   }
+
+  const resumed = useRef(false);
+  useEffect(() => {
+    if (!caseView || !data?.currentTransaction || resumed.current) return;
+    resumed.current = true;
+    const prior = data.conversations.filter(item => data.currentTransaction!.conversationIds.includes(item.id)).at(-1);
+    if (prior) setLastRequest({ task: prior.task, report: prior.report });
+  }, [caseView, data]);
 
   async function upload(file: File) {
     setUploading(true); setUploadError(null);
@@ -73,14 +84,15 @@ export default function SplitApp() {
   return <div className="workspace">
     <header className="workspace-header">
       <div className="workspace-brand"><img src="/envoi-logo.png" alt="" /><span>Envoi</span></div>
-      <button disabled={locked} onClick={() => void reload()}>Refresh status</button>
+      <div className="row"><a href="/#transactions">← Transaction board</a><button disabled={busy} onClick={() => void reload()}>Refresh status</button></div>
     </header>
     <main>
       <nav aria-label="Workspace steps"><ol className="step-progress">
-        {["Permissions", "Chat", "Monad result"].map((label, i) => <li key={label}><button aria-current={step === i ? "step" : undefined} disabled={locked || (i === 1 && !continued) || (i === 2 && !lastRequest)} onClick={() => setStep(i)}>{i + 1} · {label}</button></li>)}
+        {["Permissions", "Chat", "Monad result"].map((label, i) => <li key={label}><button aria-current={step === i ? "step" : undefined} disabled={busy || uploading || (i === 1 && !continued) || (i === 2 && !lastRequest)} onClick={() => setStep(i)}>{i + 1} · {label}</button></li>)}
       </ol></nav>
       {!data ? <section className="workspace-panel"><h1>Opening workspace</h1>{error ? <div role="alert" className="notice error-notice">{error}<button onClick={() => void reload()}>Retry loading</button></div> : <div role="status" aria-label="Loading workspace"><div className="skeleton" /><div className="skeleton" /></div>}</section> : <>
         {error && <div role="alert" className="notice error-notice">{error}</div>}
+        {data.currentTransaction && <div className="fine case-context">Transaction: {data.currentTransaction.title}{data.currentTransaction.status === "done" && " · Done. Reopen it on the board to add activity."}</div>}
         {busy && <div role="status" className="fine">Checking with Envoi…</div>}
         <section className="workspace-panel" aria-labelledby="screen-title">
           {step === 0 && <>
@@ -97,8 +109,8 @@ export default function SplitApp() {
                 <div className="messages">
                   <article className="bubble"><span className="kicker">You</span><pre>{conversation.task}</pre>{conversation.report && <details><summary>{conversation.report.fileName}</summary><pre className="untrusted">{conversation.report.text}</pre></details>}</article>
                   <article className="bubble atlas"><span className="kicker">Atlas</span>
-                    <ChatEnforcement message={conversation} conversations={data.conversations} receipts={data.receipts} disabled={locked} onView={viewRequest} />
-                    <pre>{conversation.transcript || (conversation.status === "pending" ? "Response pending." : conversation.status === "unknown" ? "Outcome unknown. Check status in options." : "No written response returned.")}</pre></article>
+                    <ChatEnforcement message={conversation} conversations={data.conversations} receipts={data.receipts} disabled={busy} onView={viewRequest} />
+                    <AtlasReply text={conversation.transcript || (conversation.status === "pending" ? "Response pending." : conversation.status === "unknown" ? "Outcome unknown. Check status in options." : "No written response returned.")} /></article>
                 </div>
               </div>)}
             </div>
@@ -135,12 +147,12 @@ export default function SplitApp() {
               }}>Run Atlas</button></>}
             {(!matchingSlip && !data.availability.signing) || !data.availability.agent ? <details className="notice"><summary>Enforcement unavailable</summary><div className="fine">{data.availability.detail}</div></details> : null}
             {run && !result && <div role="status" className="notice">No matched result recorded. Check status before another run.</div>}
-            {result && <><h2>Request result · {result.status}</h2>{result.transcript && <pre>{result.transcript}</pre>}{!receipts.length && <div className="notice">No access receipt recorded for this request.</div>}{receipts.map(receipt => <ReceiptDetail key={receipt.id} receipt={receipt} />)}</>}
+            {result && <><h2>Request result · {result.status}</h2>{result.transcript && <AtlasReply text={result.transcript} />}{!receipts.length && <div className="notice">No access receipt recorded for this request.</div>}{receipts.map(receipt => <ReceiptDetail key={receipt.id} receipt={receipt} />)}</>}
             <button style={{ marginTop: 16 }} disabled={locked} onClick={() => setStep(1)}>Back to chat</button>
           </>}
         </section>
         <details className="workspace-options"><summary>History &amp; workspace options</summary>
-          <details><summary>Previous conversations</summary>{data.conversations.filter(item => previousConversationIds.current?.has(item.id)).map(item => <article className="sheet" key={item.id}><p>{item.task}</p>{item.report && <details><summary>{item.report.fileName}</summary><pre className="untrusted">{item.report.text}</pre></details>}<pre>{item.transcript}</pre>{item.permissionId && <button onClick={() => viewRequest(item)}>View enforcement result</button>}</article>)}</details>
+          <details><summary>Previous conversations</summary>{data.conversations.filter(item => previousConversationIds.current?.has(item.id) && !(caseView && data.currentTransaction?.conversationIds.includes(item.id))).map(item => <article className="sheet" key={item.id}><p>{item.task}</p>{item.report && <details><summary>{item.report.fileName}</summary><pre className="untrusted">{item.report.text}</pre></details>}<AtlasReply text={item.transcript} />{item.permissionId && <button onClick={() => viewRequest(item)}>View enforcement result</button>}</article>)}</details>
           {paused && <div className="notice">Spending paused.<details><summary>Why?</summary><div className="fine">{uncertain ? "Workspace status is unavailable. Refresh status before spending." : "An operation is pending or unknown. Check its status; do not repeat it."}</div></details></div>}
           <h2>Operations</h2>
           {!data.operations.length && <div className="fine">No operations yet.</div>}
@@ -148,7 +160,7 @@ export default function SplitApp() {
           <details><summary>Permission history</summary><SlipHistory slips={data.slips} /></details>
           <details><summary>Access receipt history · {data.receipts.length}</summary>{data.receipts.map(receipt => <ReceiptDetail key={receipt.id} receipt={receipt} />)}</details>
           <details><summary>Document &amp; workspace limits</summary><div className="fine">Word (.docx), text, Markdown or HTML · up to 5 MB / 60,000 extracted characters. All extracted text is untrusted input. Goldman Stanley and McBain are fictional. Do not upload confidential or personal information. Anonymous browser-cookie workspace; content expires after 30 days. Public records remain. Chat: 20 messages per workspace daily, 200 shared.</div></details>
-          {resetConfirm ? <div className="notice">Clear workspace? Public records remain. Quota is not renewed.<div className="row"><button className="danger" disabled={locked || paused} onClick={async () => { if (await post("/reset", {}, true)) { setStep(0); setContinued(false); setLastRequest(null); setRun(null); setParts([]); setResetConfirm(false); } }}>Confirm reset</button><button disabled={locked} onClick={() => setResetConfirm(false)}>Cancel</button></div></div> : <button className="danger" disabled={locked || paused} onClick={() => setResetConfirm(true)}>Reset workspace</button>}
+          {resetConfirm ? <div className="notice">Clear all private transactions, conversations, reports and permissions in this browser workspace? Public records remain. Quota is not renewed.<div className="row"><button className="danger" disabled={locked || paused} onClick={async () => { if (await post("/reset", {}, true)) { setStep(0); setContinued(false); setLastRequest(null); setRun(null); setParts([]); setResetConfirm(false); } }}>Confirm reset</button><button disabled={locked} onClick={() => setResetConfirm(false)}>Cancel</button></div></div> : <button className="danger" disabled={locked || paused} onClick={() => setResetConfirm(true)}>Reset workspace</button>}
         </details>
       </>}
     </main>

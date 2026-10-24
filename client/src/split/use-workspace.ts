@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Draft, WorkspaceResponse } from "@shared/workspace";
+import { announceBoardChange } from "../board-events";
 
 export async function workspaceRequest(path = "", body?: unknown): Promise<unknown> {
   const response = await fetch(`/api/workspace${path}`, {
@@ -14,6 +15,7 @@ export async function workspaceRequest(path = "", body?: unknown): Promise<unkno
 }
 
 export function useWorkspace() {
+  const requestedCase=new URLSearchParams(window.location.search).get("case");
   const [data, setData] = useState<WorkspaceResponse | null>(null);
   const [draft, setDraft] = useState<Draft>({ permissions: [], task: "", report: null });
   const [busy, setBusy] = useState(false);
@@ -23,7 +25,7 @@ export function useWorkspace() {
   const lock = useRef(false);
   const hydrated = useRef(false);
   const refresh = useCallback(async (hydrate = false) => {
-    const next = await workspaceRequest() as WorkspaceResponse;
+    const next = await workspaceRequest(requestedCase ? `?transactionId=${encodeURIComponent(requestedCase)}` : "") as WorkspaceResponse;
     setData(next);
     setUncertain(false);
     if (!hydrated.current || hydrate) {
@@ -33,7 +35,7 @@ export function useWorkspace() {
       hydrated.current = true;
     }
     return next;
-  }, []);
+  }, [requestedCase]);
   const reload = useCallback(async () => {
     setError(null);
     try { await refresh(); } catch (e) { setUncertain(true); setError((e as Error).message); }
@@ -48,7 +50,8 @@ export function useWorkspace() {
     setError(null);
     let success = false;
     try {
-      await workspaceRequest(path, body);
+      await workspaceRequest(path, { ...(body as object), ...((requestedCase || data?.currentTransaction?.id) && path !== "/reset" && path !== "/reconcile" ? {transactionId:requestedCase ?? data?.currentTransaction?.id} : {}) });
+      announceBoardChange();
       success = true;
     } catch (e) { setError((e as Error).message); }
     finally {

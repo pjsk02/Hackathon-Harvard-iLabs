@@ -1,4 +1,5 @@
 import type { Slip, Receipt, UploadedReport } from "./contract";
+import type { TransactionCase } from "./transactions";
 
 export const ACTIONS = [
   { id: "read_regional_margins", label: "Regional profitability" },
@@ -24,4 +25,5 @@ export type WorkspaceResponse = {
   generation: number; draft: Draft; conversations: Conversation[]; slips: Slip[]; receipts: Receipt[];
   operations: OperationSummary[];
   availability: { signing: boolean; agent: boolean; chat?: boolean; detail: string };
+  currentTransaction?: TransactionCase | null;
 };

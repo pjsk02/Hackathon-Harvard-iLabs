@@ -5,9 +5,11 @@ import type { RequestHandler } from "express";
 import type { Conversation, Draft } from "../../shared/workspace";
 import { emptySnapshot, type StateSnapshot } from "../state";
 import { httpError } from "../http";
+import type { TransactionBoard } from "../../shared/transactions";
+import { operationCase } from "./transaction-model";
 
 export const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 8, connectionTimeoutMillis: 4000, idleTimeoutMillis: 10000 });
-export type Document = { state: StateSnapshot; draft: Draft; conversations: Conversation[] };
+export type Document = { state: StateSnapshot; draft: Draft; conversations: Conversation[]; board?: TransactionBoard };
 export type Workspace = { id: string; generation: number; revision: number; document: Document; active_operation: string | null };
 export type Operation = { id: string; workspace_id: string; generation: number; kind: string; signature: string; status: string; detail: string; payload: any; owner: string; reused?: boolean };
 export const freshDocument = (): Document => ({
@@ -85,12 +87,13 @@ export async function spend(c: pg.PoolClient, kind: "chain" | "model") {
   if (!r.rowCount) throw httpError(503, `The approved ${kind === "chain" ? "Monad transaction" : "AI call"} allowance is paused or exhausted. Ask the operator to approve a new total allowance; reset does not renew it.`);
 }
 
-export async function reserve(id: string, kind: string, input: unknown): Promise<Operation> {
+export async function reserve(id: string, kind: string, input: unknown, transactionId?: unknown): Promise<Operation> {
   const w = workspace();
   return transaction(async c => {
     const locked = (await c.query("SELECT * FROM envoi_workspaces WHERE id=$1 FOR UPDATE", [w.id])).rows[0] as Workspace;
     if (!locked || locked.generation !== w.generation) throw httpError(409, "The workspace changed. Reload before continuing.");
-    const signature = hash(JSON.stringify([kind, input]));
+    // Retain the signature of pre-board operations for safe same-key recovery.
+    const signature = hash(JSON.stringify(transactionId===undefined ? [kind,input] : [kind,input,{transactionId}]));
     const prior = (await c.query("SELECT * FROM envoi_operations WHERE id=$1", [id])).rows[0] as Operation | undefined;
     if (prior) {
       if (prior.workspace_id !== w.id || prior.generation !== w.generation || prior.signature !== signature) throw httpError(409, "This request identifier was already used. Nothing was repeated.");
@@ -103,11 +106,26 @@ export async function reserve(id: string, kind: string, input: unknown): Promise
     await c.query("SELECT pg_advisory_xact_lock(9172402)");
     const counts = (await c.query("SELECT count(*)::int AS total, count(*) FILTER (WHERE workspace_id=$1)::int AS local FROM envoi_operations", [w.id])).rows[0];
     if (counts.total >= 10000 || counts.local >= 500) throw httpError(429, "The retained operation limit has been reached. Reset does not renew usage limits.");
+    const hadBoard=!!locked.document.board;
+    const selected=operationCase(locked.document,transactionId);
+    if(!hadBoard) {
+      const imported=locked.document.board!.cases.find(item=>item.provenance==="workspace" && item.title==="Previous workspace activity");
+      if(imported) imported.operationIds=(await c.query("SELECT id FROM envoi_operations WHERE workspace_id=$1 AND generation=$2",[w.id,w.generation])).rows.map(row=>row.id);
+    }
+    selected.operationIds.push(id);
+    if (kind === "chat" || kind === "run") selected.conversationIds.push(id);
+    if (kind === "sign") selected.permissionIds.push(`permission-${id}`);
+    const permissionId=(input as { permissionId?: unknown } | null)?.permissionId;
+    if (typeof permissionId === "string" && !selected.permissionIds.includes(permissionId)) selected.permissionIds.push(permissionId);
+    if (kind !== "draft") selected.status="in_progress";
+    selected.updatedAt=new Date().toISOString(); selected.revision++;
     const op = (await c.query("INSERT INTO envoi_operations(id,workspace_id,generation,kind,signature,status,owner) VALUES($1,$2,$3,$4,$5,'pending',$6) RETURNING *", [id,w.id,w.generation,kind,signature,randomUUID()])).rows[0];
-    await c.query("UPDATE envoi_workspaces SET active_operation=$2 WHERE id=$1", [w.id,id]);
+    // Save case association in the same transaction as the operation journal,
+    // before any provider call or checkpoint can start.
+    await c.query("UPDATE envoi_workspaces SET active_operation=$2,document=$3,revision=revision+1 WHERE id=$1", [w.id,id,JSON.stringify(locked.document)]);
     w.active_operation = id;
     // Use the locked revision, never overwrite edits made since session middleware loaded.
-    w.document = locked.document; w.revision = locked.revision;
+    w.document = locked.document; w.revision = locked.revision + 1;
     return op;
   });
 }

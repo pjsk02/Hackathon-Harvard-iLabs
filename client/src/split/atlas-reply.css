@@ -1,0 +1,20 @@
+.workspace .atlas-reply { min-width:0; max-width:100%; line-height:1.7; overflow-wrap:anywhere; }
+.workspace .atlas-reply > :first-child { margin-top:0; }
+.workspace .atlas-reply > :last-child { margin-bottom:0; }
+.workspace .atlas-reply p { margin:0 0 1em; white-space:pre-line; }
+.workspace .atlas-reply :is(strong,b) { font-weight:700; }
+.workspace .atlas-reply :is(h1,h2,h3,h4,h5,h6) { font:600 1.1em/1.4 var(--font); margin:1.2em 0 .5em; letter-spacing:0; }
+.workspace .atlas-reply :is(ul,ol) { padding-left:1.6em; margin:.6em 0 1em; }
+.workspace .atlas-reply li { margin:.35em 0; }
+.workspace .atlas-reply li p { margin:.3em 0; }
+.workspace .atlas-reply blockquote { margin:1em 0; border-left:3px solid var(--line-strong); padding-left:1em; color:var(--muted); }
+.workspace .atlas-reply code { font: .88em/1.6 Consolas,monospace; background:var(--card-2); border-radius:4px; padding:.1em .3em; }
+.workspace .atlas-reply .reply-scroll { max-width:100%; overflow-x:auto; margin:1em 0; }
+.workspace .atlas-reply pre { white-space:pre; padding:14px; margin:0; background:var(--card-2); font-family:Consolas,monospace; }
+.workspace .atlas-reply pre code { padding:0; background:none; }
+.workspace .atlas-reply table { width:max-content; min-width:100%; border-collapse:collapse; }
+.workspace .atlas-reply :is(th,td) { padding:9px 12px; border:1px solid var(--line); text-align:left; }
+.workspace .atlas-reply th { font-weight:600; }
+.workspace .atlas-reply a { text-decoration:underline; }
+.workspace .atlas-reply input[type=checkbox] { width:14px; height:14px; }
+.workspace .bubble.atlas { min-width:0; max-width:100%; }

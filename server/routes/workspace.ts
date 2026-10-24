@@ -12,11 +12,14 @@ import { proposeCalls, validateAgentInput } from "../agent/workspace-agent";
 import { llmConfigured } from "../agent/llm";
 import { chatWithDocument } from "../agent/chat";
 import { httpError, HttpError } from "../http";
+import { transactionsRouter } from "./transactions";
+import { boardWorkspace } from "../storage/transactions";
 import { activeExternal, budget, checkpoint, finish, freshDocument, load, pool, reserve, spend, transaction, workspace, workspaceSession, type Operation, type Workspace } from "../storage/repository";
 
 export function createWorkspaceRouter(chat = chatWithDocument, providerConfigured = llmConfigured) {
 const workspaceRouter = Router();
 workspaceRouter.use("/api/workspace", workspaceSession);
+workspaceRouter.use(transactionsRouter);
 
 function requestKey(value: unknown): string {
   if (typeof value !== "string" || !UUID_PATTERN.test(value)) throw httpError(400, "A UUID Idempotency-Key is required.");
@@ -42,17 +45,25 @@ async function availability() {
         "Live operations are configured. Each request consumes approved allowances; connectivity is verified when requested.",
   };
 }
-async function response(w: Workspace): Promise<WorkspaceResponse> {
+async function response(w: Workspace, requested?: unknown): Promise<WorkspaceResponse> {
+  const selected=w.document.board?.cases.find(item=>item.id===(requested ?? w.document.board?.activeId) && item.provenance==="workspace");
+  if (requested !== undefined && !selected) throw httpError(404,"This transaction does not belong to this workspace.");
   const operations = await pool.query("SELECT id,kind,status,detail FROM envoi_operations WHERE workspace_id=$1 ORDER BY created_at DESC LIMIT 500", [w.id]);
-  return { generation: w.generation, draft: w.document.draft, conversations: w.document.conversations,
+  return { generation: w.generation, draft: selected?.draft ?? w.document.draft, conversations: w.document.conversations,
     slips: w.document.state.slips, receipts: [...w.document.state.receipts].reverse(),
-    operations: operations.rows, availability: await availability() };
+    operations: operations.rows, availability: await availability(), currentTransaction:selected ?? null };
 }
-workspaceRouter.get("/api/workspace", async (_req,res) => res.json(await response(workspace())));
+workspaceRouter.get("/api/workspace", async (req,res) => {
+  const current=workspace();
+  // A pre-board interrupted operation must remain visible for explicit recovery.
+  // Metadata initialization waits; it cannot hide that operation's controls.
+  const w=!current.document.board && current.active_operation ? current : await boardWorkspace(current.id);
+  res.json(await response(w,req.query.transactionId));
+});
 
-async function perform(key: string, kind: string, input: unknown, work: (w: Workspace, op: Operation) => Promise<void>) {
+async function perform(key: string, kind: string, input: unknown, work: (w: Workspace, op: Operation) => Promise<void>, transactionId?: unknown) {
   const w = workspace();
-  const op = await reserve(key,kind,input);
+  const op = await reserve(key,kind,input,transactionId);
   if (op.reused) {
     if (op.status !== "complete") throw httpError(409, "This operation already exists and was not repeated. Check its recorded status.");
     return response(await load(w.id));
@@ -60,6 +71,8 @@ async function perform(key: string, kind: string, input: unknown, work: (w: Work
   await state.withSnapshot(w.document.state, () => activeExternal.run({op, checkpoint: () => checkpoint(w,op)}, async () => {
     try {
       await work(w,op);
+      const selected=w.document.board?.cases.find(item=>item.operationIds.includes(op.id));
+      if(selected) selected.draft=structuredClone(w.document.draft);
       await checkpoint(w,op,{ ...op.payload, phase: "ready" });
       const pending = await pool.query("SELECT 1 FROM envoi_broadcasts WHERE operation_id=$1 AND status='unknown' LIMIT 1",[op.id]);
       await finish(w,op,pending.rowCount ? "unknown" : "complete",pending.rowCount ? "The decision is saved; public recording is unconfirmed. Check status without repeating the request." : "Completed and saved.");
@@ -76,7 +89,7 @@ async function perform(key: string, kind: string, input: unknown, work: (w: Work
 }
 workspaceRouter.post("/api/workspace/draft", async (req,res) => {
   const draft = validateDraft(req.body);
-  res.json(await perform(requestKey(req.get("Idempotency-Key")),"draft",draft,async w => { w.document.draft = draft; }));
+  res.json(await perform(requestKey(req.get("Idempotency-Key")),"draft",draft,async w => { w.document.draft = draft; },req.body?.transactionId));
 });
 workspaceRouter.post("/api/workspace/sign", async (req,res) => {
   if (!validSelection(req.body?.permissions)) throw httpError(400, "Select one or more of the six permissions, without duplicates.");
@@ -97,7 +110,7 @@ workspaceRouter.post("/api/workspace/sign", async (req,res) => {
     state.addSlip(slip,w.generation);
     w.document.draft.permissions = permissions;
     op.payload = { external: true, slip };
-  }));
+  },req.body?.transactionId));
 });
 function permission(w: Workspace, id: unknown) {
   if (typeof id !== "string" || !w.document.state.slips.some(s => s.mandate.mandateId === id)) throw httpError(400,"Choose an issued permission version from this workspace.");
@@ -114,7 +127,7 @@ workspaceRouter.post("/api/workspace/act", async (req,res) => {
     await checkpoint(w,op,op.payload);
     const receipt = await act({ action,mandateId: permissionId,agentId: AGENT_ID },"forced");
     op.payload.receiptId = receipt.id;
-  }));
+  },req.body?.transactionId));
 });
 workspaceRouter.post("/api/workspace/run", async (req,res) => {
   const input = validateAgentInput({reportId:"clean",task:req.body?.task,...(req.body?.report ? {upload:req.body.report} : {})});
@@ -143,7 +156,7 @@ workspaceRouter.post("/api/workspace/run", async (req,res) => {
       }
       conversation.status = "complete";
     } catch (error) { conversation.status = "unknown"; throw error; }
-  }));
+  },req.body?.transactionId));
 });
 
 workspaceRouter.post("/api/workspace/chat", async (req,res) => {
@@ -161,7 +174,8 @@ workspaceRouter.post("/api/workspace/chat", async (req,res) => {
       const count = (await c.query("SELECT count(*)::int AS total,count(*) FILTER(WHERE workspace_id=$1)::int AS local FROM envoi_operations WHERE kind='chat' AND created_at > now()-interval '24 hours'",[w.id])).rows[0];
       if (count.local > 20 || count.total > 200) throw httpError(429,"Document chat has reached its daily limit (20 messages per workspace, 200 shared). Please try again tomorrow.");
     });
-    const history = [...w.document.conversations];
+    const selected=w.document.board?.cases.find(item=>item.id===w.document.board?.activeId);
+    const history = w.document.conversations.filter(item=>!selected || selected.conversationIds.includes(item.id));
     const conversation = {id:op.id,task:input.task!,report:input.upload ?? null,permissionId:"",createdAt:new Date().toISOString(),transcript:"",receiptIds:[] as string[],status:"pending" as "pending"|"complete"|"unknown"};
     w.document.conversations.push(conversation);
     w.document.draft.task = input.task!;
@@ -172,7 +186,7 @@ workspaceRouter.post("/api/workspace/chat", async (req,res) => {
       conversation.transcript = await chat(input.task!,input.upload ?? null,history.filter(item => historyIds.includes(item.id)));
       conversation.status = "complete";
     } catch(error) { conversation.status="unknown"; throw error; }
-  }));
+  },req.body?.transactionId));
 });
 
 workspaceRouter.post("/api/workspace/reset", async (req,res) => {
