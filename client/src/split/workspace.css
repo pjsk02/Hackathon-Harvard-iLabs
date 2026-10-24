@@ -35,6 +35,10 @@
 .workspace textarea { width:100%; min-height:85px; max-height:260px; resize:vertical; padding:8px; border:0; background:transparent; font-size:16px; }
 .workspace select { max-width:100%; padding:9px; border:1px solid var(--line); border-radius:8px; background:var(--paper); }
 .workspace .composer .row { justify-content:space-between; }
+.workspace .quick-prompts { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 14px; }
+.workspace .quick-prompts button { flex:1 1 auto; min-height:44px; padding:8px 12px; border:1px solid #b99a5b; border-radius:999px; background:linear-gradient(135deg,#493059,#30203d); color:#f5dfaa; font-size:13px; font-weight:600; line-height:1.4; box-shadow:inset 0 1px 0 #ffffff14; }
+.workspace .quick-prompts button:hover:not(:disabled) { background:#523461; border-color:#d9b86e; }
+.workspace .quick-prompts button:focus-visible { outline-color:#79549b; outline-offset:3px; }
 .workspace .attachment { font-size:13px; overflow-wrap:anywhere; }
 .workspace .untrusted { background:#fff6e8; border-left:3px solid #bd7d35; padding:10px; max-height:280px; overflow:auto; }
 .workspace .notice { padding:12px 15px; border-radius:9px; background:#fff2d8; font-size:14px; margin:12px 0; }

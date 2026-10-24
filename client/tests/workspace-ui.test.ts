@@ -51,7 +51,7 @@ async function harness(savedChat = false) {
     state.conversations.push({id:"prior-chat",permissionId:"",task:"Old saved request",report:state.draft.report,transcript:"Old answer",status:"complete",createdAt:new Date().toISOString(),receiptIds:[]});
   }
   const errors: string[] = [];
-  const options = { rejectSign: false, failGet: false, denial: null as null | "scope" | "expiry", recording: "none" as "none" | "pending" | "recorded" | "mismatch" };
+  const options = { rejectSign: false, failGet: false, holdChat: null as Promise<void> | null, denial: null as null | "scope" | "expiry", recording: "none" as "none" | "pending" | "recorded" | "mismatch" };
   page.on("pageerror", error => errors.push(error.message));
   await page.setRequestInterception(true);
   page.on("request", async request => {
@@ -72,6 +72,7 @@ async function harness(savedChat = false) {
         slip.mandate.allowedActions = body.permissions;
         state.slips.push(structuredClone(slip)); break;
       case "/api/workspace/chat":
+        if (options.holdChat) await options.holdChat;
         state.conversations.push({ id: `chat-${state.conversations.length}`, ...body, permissionId: "", transcript: "I can help with your document.", receiptIds: [], status: "complete", createdAt: new Date().toISOString() }); break;
       case "/api/workspace/run": {
         const receipt: Receipt = {
@@ -112,6 +113,66 @@ async function harness(savedChat = false) {
   return { context, page, state, calls, errors, options };
 }
 type Harness = Awaited<ReturnType<typeof harness>>;
+test("quick prompts fill an editable message, preserve the document, and never auto-send", async () => {
+  const h = await harness();
+  let releaseChat: (() => void) | undefined;
+  try {
+    await clickText(h.page, "Save draft and continue");
+    assert.equal(await h.page.$eval("#task", node => (node as HTMLTextAreaElement).value), "");
+    await h.page.$eval('input[type="file"]', input => {
+      const transfer = new DataTransfer();
+      transfer.items.add(new File(["Please review the attached request."], "request.txt", { type: "text/plain" }));
+      (input as HTMLInputElement).files = transfer.files;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await h.page.waitForSelector(".attachment");
+    await h.page.waitForFunction(() => !document.querySelector<HTMLButtonElement>(".quick-prompts button")?.disabled);
+    const before = h.calls.length;
+    const prompts = ["Complete the request", "Verify this request", "Summarize this document"];
+    assert.deepEqual(await h.page.$$eval(".quick-prompts button", nodes => nodes.map(node => node.textContent)), prompts);
+    for (const prompt of prompts) {
+      await clickText(h.page, prompt);
+      assert.equal(await h.page.$eval("#task", node => (node as HTMLTextAreaElement).value), prompt);
+      assert.equal(await h.page.evaluate(() => document.activeElement?.id), "task");
+      assert.equal(await h.page.$eval(".attachment strong", node => node.textContent), "request.txt");
+      assert.equal(h.calls.length, before);
+    }
+    await h.page.focus(".quick-prompts button");
+    await h.page.keyboard.press("Enter");
+    assert.equal(await h.page.$eval("#task", node => (node as HTMLTextAreaElement).value), "Complete the request");
+    assert.equal(h.calls.length, before);
+    await h.page.type("#task", " using the attached report.");
+    assert.equal(await h.page.$eval("#task", node => (node as HTMLTextAreaElement).value), "Complete the request using the attached report.");
+    mkdirSync("generated-artifacts", { recursive: true });
+    for (const width of [1280, 390]) {
+      await h.page.setViewport({ width, height: 900 });
+      assert.equal(await h.page.evaluate(() => {
+        const prompts = document.querySelector(".quick-prompts")!.getBoundingClientRect();
+        const textarea = document.querySelector("#task")!.getBoundingClientRect();
+        const toolbar = document.querySelector(".quick-prompts + .row")!.getBoundingClientRect();
+        return document.documentElement.scrollWidth <= innerWidth && prompts.top >= textarea.bottom &&
+          prompts.bottom <= toolbar.top && prompts.left === toolbar.left && prompts.right === toolbar.right &&
+          [...document.querySelectorAll(".quick-prompts button")].every(button => button.getBoundingClientRect().height >= 44);
+      }), true);
+      await h.page.screenshot({ path: `generated-artifacts/quick-prompts-${width}.jpg`, fullPage: true });
+    }
+    h.options.holdChat = new Promise<void>(resolve => { releaseChat = resolve; });
+    await h.page.click('button[type="submit"]');
+    await h.page.waitForFunction(() => [...document.querySelectorAll<HTMLButtonElement>(".quick-prompts button")].every(button => button.disabled));
+    assert.ok(releaseChat);
+    releaseChat();
+    await h.page.waitForNetworkIdle({ idleTime: 100 });
+    const sent = h.calls.filter(call => call.path.endsWith("/chat"));
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].body.task, "Complete the request using the attached report.");
+    assert.deepEqual(sent[0].body.report, { fileName: "request.txt", text: "Please review the attached request." });
+    assert.equal(await h.page.$eval("#task", node => (node as HTMLTextAreaElement).value), "");
+    assert.equal(await h.page.$$eval(".quick-prompts button", nodes => nodes.every(node => !node.disabled)), true);
+    assert.equal(h.calls.some(call => call.path.endsWith("/run") || call.path.endsWith("/sign")), false);
+    assert.deepEqual(h.errors, []);
+  } finally { releaseChat?.(); await h.context.close(); }
+});
+
 test("new chat opens empty even when an old prompt, document and conversation are saved", async () => {
   const h = await harness(true);
   try {
