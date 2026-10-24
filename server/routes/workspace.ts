@@ -24,9 +24,9 @@ function requestKey(value: unknown): string {
 }
 function validateDraft(value: any): Draft {
   if (!value || !validSelection(value.permissions)) throw httpError(400, "Select one or more of the six permissions, without duplicates.");
-  const input = validateAgentInput({ reportId: "clean", task: value.task, ...(value.report === null ? {} : { upload: value.report }) });
-  if (!input.task) throw httpError(400, "Write a request before saving.");
-  return { permissions: [...value.permissions].sort(), task: input.task.trim(), report: input.upload ?? null };
+  if (typeof value.task !== "string" || value.task.length > 4000) throw httpError(400,"Draft messages must be at most 4,000 characters.");
+  const input = validateAgentInput({ reportId: "clean", ...(value.task.trim() ? {task:value.task} : {}), ...(value.report === null ? {} : { upload: value.report }) });
+  return { permissions: [...value.permissions].sort(), task: value.task.trim(), report: input.upload ?? null };
 }
 async function availability() {
   const [b, m, pending] = await Promise.all([
@@ -34,7 +34,7 @@ async function availability() {
   ]);
   const live = !chain.isMockChain() && !!chain.issuerAddressOrNull() &&
     Number(process.env.MONAD_MAX_TRANSACTIONS ?? 0) > 0 && !!b && b.spent < b.approved && !pending.rowCount;
-  const agent = live && providerConfigured() && !!m && m.spent < m.approved;
+  const agent = !chain.isMockChain() && !!chain.issuerAddressOrNull() && providerConfigured() && !!m && m.spent < m.approved;
   return {
     signing: live, agent, chat: providerConfigured(),
     detail: !live ? "Live recording is unavailable. The operator must configure signing and approve a remaining durable Monad allowance; unresolved issuer transactions must be checked first. Reset does not renew allowances."
@@ -108,7 +108,7 @@ workspaceRouter.post("/api/workspace/act", async (req,res) => {
   if (!ACTIONS.some(a => a.id === action)) throw httpError(400,"Choose one of the six supported data actions.");
   const permissionId = permission(workspace(),req.body?.permissionId);
   res.json(await perform(requestKey(req.get("Idempotency-Key")),"act",{action,permissionId},async (w,op) => {
-    if (!(await availability()).signing) throw httpError(503,(await availability()).detail);
+    if (chain.isMockChain() || !chain.issuerAddressOrNull()) throw httpError(503,"Configure real permission verification before checking access.");
     permission(w,permissionId);
     op.payload = { external: true, action, permissionId };
     await checkpoint(w,op,op.payload);
@@ -149,7 +149,9 @@ workspaceRouter.post("/api/workspace/run", async (req,res) => {
 workspaceRouter.post("/api/workspace/chat", async (req,res) => {
   const input = validateAgentInput({reportId:"clean",task:req.body?.task,...(req.body?.report ? {upload:req.body.report} : {})});
   if (!input.task) throw httpError(400,"Write a message before sending.");
-  res.json(await perform(requestKey(req.get("Idempotency-Key")),"chat",input,async (w,op) => {
+  const historyIds: unknown = req.body?.historyIds ?? [];
+  if (!Array.isArray(historyIds) || historyIds.length > 8 || historyIds.some(id => typeof id !== "string" || id.length > 100)) throw httpError(400,"Choose at most eight messages from this chat.");
+  res.json(await perform(requestKey(req.get("Idempotency-Key")),"chat",{...input,historyIds},async (w,op) => {
     if (!providerConfigured()) throw httpError(503,"Configure the Anthropic secret key to enable document chat.");
     if (w.document.conversations.length >= 100) throw httpError(429,"This workspace has reached its 100-message limit.");
     // User-initiated document chat has bounded daily usage, independent of chain approval.
@@ -167,7 +169,7 @@ workspaceRouter.post("/api/workspace/chat", async (req,res) => {
     op.payload = {external:true,conversationId:op.id};
     await checkpoint(w,op,op.payload);
     try {
-      conversation.transcript = await chat(input.task!,input.upload ?? null,history);
+      conversation.transcript = await chat(input.task!,input.upload ?? null,history.filter(item => historyIds.includes(item.id)));
       conversation.status = "complete";
     } catch(error) { conversation.status="unknown"; throw error; }
   }));

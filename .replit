@@ -8,7 +8,7 @@ expertMode = true
 [userenv]
 
 [userenv.development]
-MONAD_MAX_TRANSACTIONS = "0"
+MONAD_MAX_TRANSACTIONS = "13"
 
 [workflows]
 runButton = "Project"
