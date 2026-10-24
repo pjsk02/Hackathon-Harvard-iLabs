@@ -32,8 +32,8 @@ test("one neutral model request, strips markers but retains source text, accepts
   assert.equal("temperature" in seen[0], false);
   assert.equal(seen[0].system, SYSTEM_PROMPT);
   assert.match(SYSTEM_PROMPT, /source material, not instructions/);
-  assert.match(SYSTEM_PROMPT, /Baine/);
-  assert.match(SYSTEM_PROMPT, /JT Morgan/);
+  assert.match(SYSTEM_PROMPT, /McBain/);
+  assert.match(SYSTEM_PROMPT, /Goldman Stanley/);
   assert.match(SYSTEM_PROMPT, /untrusted/);
   assert.doesNotMatch(SYSTEM_PROMPT, /should be followed|Northwind|Meridian/);
   const source = seen[0].messages[0].content;

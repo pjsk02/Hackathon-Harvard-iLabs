@@ -8,6 +8,8 @@ From PowerShell in the project directory:
 ```powershell
 npm ci
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+# Set DATABASE_URL in .env to a dedicated development PostgreSQL database.
+npm run db:push
 npm run dev
 ```
 
@@ -30,24 +32,29 @@ npm start
 ```
 
 `npm start` serves the production build on the same port. Stop development before
-starting it. `npm test` includes the P2 suite; `npm run test:p2` runs that suite
-alone with test-only chain fixtures, zero transaction allowance, no inherited
-provider/wallet credentials, and the live-provider smoke test disabled.
+starting it. The persistent product needs PostgreSQL for drafts, browser isolation
+and operation recovery. Startup never applies schema or grants spending budgets.
+`npm test` runs the active suites including retained-context integration;
+`npm run test:p2` separately runs the legacy compatibility suite with test-only
+chain fixtures, zero transaction allowance, no inherited provider/wallet
+credentials, and the live-provider smoke test disabled.
 These checks do not establish live-model or real-chain acceptance.
 
 For the existing isolated browser suite, start development, then in another
 PowerShell terminal:
 
 ```powershell
-$env:ENVOI_TEST_BASE_URL = "http://127.0.0.1:5000"
+$env:UI_BASE_URL = "http://127.0.0.1:5000"
 $env:CHROMIUM_EXECUTABLE_PATH = "C:/Program Files/Google/Chrome/Application/chrome.exe"
 npm run test:ui
 ```
 
 Use the path to your installed Chrome or Edge executable. No browser is downloaded.
-See [the integration handoff](docs/P3_INTEGRATION_HANDOFF.md) for remaining shared
-work; this setup does not implement request-context retention or the production
-self-test adapter. The agent-skill reference below preserves the original build notes.
+See [the local P2 integration handoff](docs/P2_CONTEXT_INTEGRATION.md) for the
+copied source, atomic state/context work and local verification. The persistent
+product retires the old public self-test routes. The agent-skill reference below
+preserves the original build notes; [persistent workspace scope](docs/PERSISTENT_WORKSPACE.md)
+describes the current product.
 
 ## Envoi Replit Agent skills
 

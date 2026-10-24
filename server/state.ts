@@ -1,6 +1,7 @@
-// In-memory slips and receipts (P3). One process, no database.
-// Every restart or redeploy wipes this.
+// State operations act on the request-local snapshot persisted by the repository.
+// Internal isolated instances own their own snapshot and never copy the sender.
 import type { AttemptEvidence, Receipt, Slip } from "../shared/contract";
+import { CHAIN_ID } from "../shared/contract";
 import { attemptAction, attemptAgent, attemptFingerprint, canonicalAttemptRecord } from "../shared/attempt-record";
 import type { OriginalRequestContext } from "./chain/evidence";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -13,7 +14,12 @@ export type StateSnapshot = {
 export const emptySnapshot = (): StateSnapshot => ({ slips: [], contexts: [], receipts: [], counter: 0, nextId: 1, generation: 0 });
 const fallback = emptySnapshot(); // Offline legacy tests only; HTTP uses isolated durable snapshots.
 const workspaceState = new AsyncLocalStorage<StateSnapshot>();
-const current = () => workspaceState.getStore() ?? fallback;
+const closedSnapshots = new WeakSet<StateSnapshot>();
+const current = () => {
+  const snapshot = workspaceState.getStore() ?? fallback;
+  if (closedSnapshots.has(snapshot)) throw httpError(409, "This isolated state is closed.");
+  return snapshot;
+};
 export const withSnapshot = <T>(snapshot: StateSnapshot, work: () => T): T => workspaceState.run(snapshot, work);
 const requestGeneration = new AsyncLocalStorage<number>();
 
@@ -84,6 +90,39 @@ export function getReceipt(id: string): Receipt | undefined {
   return current().receipts.find((r) => r.id === id);
 }
 
+/** Publish the decision and its frozen request boundary as one synchronous write. */
+export function addActionReceipt(input: NewReceipt, context: OriginalRequestContext, expectedGeneration: number): Receipt {
+  assertWritable(expectedGeneration);
+  const snapshot = current();
+  const original = context?.originalSlip;
+  const block = context?.requestBlock;
+  const issued = original?.mandate && getSlip(original.mandate.mandateId);
+  if (!Number.isSafeInteger(expectedGeneration) || expectedGeneration < 0 ||
+      context?.generation !== expectedGeneration || !original || !block || !issued ||
+      input.kind !== "action" || !["agent", "forced"].includes(input.source) ||
+      !["ALLOWED", "BLOCKED"].includes(input.decision) ||
+      (input.decision === "BLOCKED" && input.data !== null) ||
+      input.mandateId !== original.mandate.mandateId || input.agentId !== context.agentId ||
+      input.action !== context.action || input.actionTime !== block.blockTimestamp ||
+      context.resource !== original.mandate.resource || context.scenarioId !== original.mandate.scenarioId ||
+      JSON.stringify(issued) !== JSON.stringify(original) ||
+      !Number.isSafeInteger(block.blockNumber) || block.blockNumber < 0 ||
+      !Number.isSafeInteger(block.blockTimestamp) || block.blockTimestamp < 0 ||
+      block.chainId !== CHAIN_ID || !/^0x[0-9a-f]{64}$/i.test(block.blockHash)) {
+    throw httpError(409, "The action and original request context do not match this session.");
+  }
+  // All validation, cloning and allocation occur before any observable mutation.
+  const saved = structuredClone(context);
+  const receipt: Receipt = { ...input, id: `r_${String(snapshot.nextId).padStart(3, "0")}`, createdAt: new Date().toISOString() };
+  const receipts = [...snapshot.receipts, receipt];
+  const contexts: StateSnapshot["contexts"] = [...snapshot.contexts, [receipt.id, saved]];
+  snapshot.receipts = receipts;
+  snapshot.contexts = contexts;
+  snapshot.nextId++;
+  snapshot.counter++;
+  return receipt;
+}
+
 export function saveRequestContext(receiptId: string, context: OriginalRequestContext): void {
   assertWritable(context.generation);
   const receipt = getReceipt(receiptId);
@@ -97,7 +136,7 @@ export function saveRequestContext(receiptId: string, context: OriginalRequestCo
 
 export function getRequestContext(receiptId: string): OriginalRequestContext | undefined {
   const context = current().contexts.find(([id]) => id === receiptId)?.[1];
-  return context ? structuredClone(context) : undefined;
+  return context && context.generation === current().generation ? structuredClone(context) : undefined;
 }
 
 /** Updates audit metadata only; preserves the receipt identity, decision and counter. */
@@ -147,4 +186,27 @@ export function reset(): void {
   s.contexts = [];
   s.counter = 0;
   s.nextId = 1;
+}
+
+/** Private in-memory state for internal orchestration; the chain sender is not copied. */
+export function createIsolatedState() {
+  const snapshot = emptySnapshot();
+  const bind = <Args extends unknown[], Result>(fn: (...args: Args) => Result) =>
+    (...args: Args): Result => withSnapshot(snapshot, () => fn(...args));
+  return {
+    getGeneration: bind(getGeneration), getResetGeneration: bind(getResetGeneration),
+    isCurrentGeneration: bind(isCurrentGeneration), assertCurrentGeneration: bind(assertCurrentGeneration),
+    withResetGeneration: <T>(generation: number, work: () => T): T =>
+      withSnapshot(snapshot, () => withResetGeneration(generation, work)),
+    getSlip: bind(getSlip), addSlip: bind(addSlip), listSlips: bind(listSlips),
+    getReceipt: bind(getReceipt), addReceipt: bind(addReceipt), listReceipts: bind(listReceipts),
+    addActionReceipt: bind(addActionReceipt), saveRequestContext: bind(saveRequestContext),
+    getRequestContext: bind(getRequestContext), updateAttemptEvidence: bind(updateAttemptEvidence),
+    getCounter: bind(getCounter), reset: bind(reset),
+    close() {
+      if (closedSnapshots.has(snapshot)) return;
+      withSnapshot(snapshot, reset);
+      closedSnapshots.add(snapshot);
+    },
+  };
 }

@@ -284,6 +284,6 @@ test("actual owner service retains the available next-second compatibility dispu
   assert.equal(f.counts.salaries, 0);
 });
 
-// Retain, do not replace with tests against invented or merely proposed hooks.
-test.todo("P1/P3 contract blocked: equal-time finalized blocks N/N+1/N+2 use retained original context; reject later/noncanonical/unfinalized evidence");
-test.todo("P1/P3 contract blocked: finalized-reference capture or verification outage releases no data, substitutes no clock/latest/mock evidence, makes no verified claim");
+// Retained-context regressions now run in workspace-context.test.ts using the
+// actual P1 service, atomic private state and P2 evaluator, including same-second
+// replay, invalid evidence and capture/verification outages.

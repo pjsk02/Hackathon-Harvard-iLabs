@@ -14,7 +14,7 @@ import { chatWithDocument } from "../agent/chat";
 import { httpError, HttpError } from "../http";
 import { activeExternal, budget, checkpoint, finish, freshDocument, load, pool, reserve, spend, transaction, workspace, workspaceSession, type Operation, type Workspace } from "../storage/repository";
 
-export function createWorkspaceRouter(chat = chatWithDocument) {
+export function createWorkspaceRouter(chat = chatWithDocument, providerConfigured = llmConfigured) {
 const workspaceRouter = Router();
 workspaceRouter.use("/api/workspace", workspaceSession);
 
@@ -34,9 +34,9 @@ async function availability() {
   ]);
   const live = !chain.isMockChain() && !!chain.issuerAddressOrNull() &&
     Number(process.env.MONAD_MAX_TRANSACTIONS ?? 0) > 0 && !!b && b.spent < b.approved && !pending.rowCount;
-  const agent = live && llmConfigured() && !!m && m.spent < m.approved;
+  const agent = live && providerConfigured() && !!m && m.spent < m.approved;
   return {
-    signing: live, agent, chat: llmConfigured(),
+    signing: live, agent, chat: providerConfigured(),
     detail: !live ? "Live recording is unavailable. The operator must configure signing and approve a remaining durable Monad allowance; unresolved issuer transactions must be checked first. Reset does not renew allowances."
       : !agent ? "Recording is available. To run Atlas, configure Anthropic and approve a remaining AI-call allowance." :
         "Live operations are configured. Each request consumes approved allowances; connectivity is verified when requested.",
@@ -150,7 +150,7 @@ workspaceRouter.post("/api/workspace/chat", async (req,res) => {
   const input = validateAgentInput({reportId:"clean",task:req.body?.task,...(req.body?.report ? {upload:req.body.report} : {})});
   if (!input.task) throw httpError(400,"Write a message before sending.");
   res.json(await perform(requestKey(req.get("Idempotency-Key")),"chat",input,async (w,op) => {
-    if (!llmConfigured()) throw httpError(503,"Configure the Anthropic secret key to enable document chat.");
+    if (!providerConfigured()) throw httpError(503,"Configure the Anthropic secret key to enable document chat.");
     if (w.document.conversations.length >= 100) throw httpError(429,"This workspace has reached its 100-message limit.");
     // User-initiated document chat has bounded daily usage, independent of chain approval.
     // Pending/unknown attempts count too; a restart or reset cannot refund calls.

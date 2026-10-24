@@ -188,7 +188,7 @@ test("model failure and crash recovery preserve no-retry identity but permit dis
     calls++;
     if(calls===1) throw new Error("Simulated provider timeout; no external call");
     return "Offline fixture answer";
-  }));
+  }, () => true)); // The injected chat fixture needs no real provider credentials.
   app.use(errorHandler);
   const server=app.listen(0,"127.0.0.1");
   await new Promise<void>(r=>server.once("listening",r));

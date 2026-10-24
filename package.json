@@ -16,8 +16,9 @@
     "test:ui": "node --import tsx --test --test-concurrency=1 client/tests/workspace-ui.test.ts",
     "test:storage": "node --import tsx --test server/storage/repository.test.ts",
     "test:p2": "node scripts/test-p2.mjs",
-    "db:push": "tsx scripts/migrate-development.ts",
-    "test": "npm run test:state && npm run test:chain && npm run test:agent && npm run test:client"
+    "test:context": "node --import tsx --test server/gateway/tests/workspace-context.test.ts",
+    "db:push": "node --env-file-if-exists=.env --import tsx scripts/migrate-development.ts",
+    "test": "npm run test:state && npm run test:chain && npm run test:agent && npm run test:client && npm run test:context"
   },
   "repository": {
     "type": "git",
@@ -43,5 +44,8 @@
   },
   "devDependencies": {
     "puppeteer-core": "^25.16.0"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }

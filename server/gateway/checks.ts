@@ -6,6 +6,8 @@ import { actionLabel, consulting, DEFAULT_SCENARIO_ID } from "../../shared/scena
 import { lookup, stampMatchesRequest, type ChainReference } from "../chain";
 import { digestOf, issuerAddress, recoverSigner } from "../chain/slip";
 import { httpError } from "../http";
+import type { OriginalRequestContext } from "../chain/evidence";
+import { createWorkspaceEvaluator } from "./workspace-checks";
 
 // Test seams use the actual current P1 signatures; they do not define a new wire contract.
 type CheckDependencies = {
@@ -94,7 +96,7 @@ function createChecks(overrides: Partial<CheckDependencies>) {
     const knownAction = action === consulting.allowed.name || action === consulting.forbidden.name;
 
     const checks: Check[] = [
-      { id: "signed", label: "Signed by the client", pass: typeof signer === "string" && signer.toLowerCase() === issuer && typeof m.issuer === "string" && m.issuer.toLowerCase() === issuer, detail: "Not signed by Northwind" },
+      { id: "signed", label: "Signed by the client", pass: typeof signer === "string" && signer.toLowerCase() === issuer && typeof m.issuer === "string" && m.issuer.toLowerCase() === issuer, detail: `Not signed by ${consulting.client.name}` },
       { id: "agent", label: "The right AI", pass: agentId === m.agentId, detail: "This slip belongs to a different AI" },
       { id: "valid", label: "Still valid", pass: [m.issuedAt, m.expiresAt, actionTime].every(Number.isSafeInteger) && m.issuedAt <= actionTime && actionTime < m.expiresAt, detail: "This slip has expired or is not active yet" },
       { id: "stamped", label: "Stamped before request", pass: stampedPass, detail: stampedDetail },
@@ -117,15 +119,17 @@ export function createEvaluator(overrides: Partial<CheckDependencies> = {}) {
  * P1 currently waits for the next integer second before its amended stamp.
  * This path never substitutes for a failed finalized-reference capture and never
  * claims immutable request context or same-timestamp replay protection.
- * An explicitly supplied proposed context is refused, not silently ignored.
+ * Supplied context uses the same retained-block verifier as the persistent app.
+ * Missing context retains the retired four-argument compatibility behavior only.
  */
 export function createCompatibilityEvaluator(overrides: Partial<CheckDependencies> = {}) {
   const checks = createChecks(overrides);
+  const withContext = createWorkspaceEvaluator(overrides);
   return async function evaluate(
     slip: Slip, action: string, actionTime: number, agentId: string = AGENT_ID, originalContext?: unknown,
   ): Promise<Check[]> {
     if (originalContext !== undefined) {
-      throw httpError(503, "Immutable original request context remains an unapproved integration extension.");
+      return withContext(slip, action, actionTime, agentId, originalContext as OriginalRequestContext);
     }
     return checks(slip, action, { kind: "legacy-time", actionTime }, agentId);
   };

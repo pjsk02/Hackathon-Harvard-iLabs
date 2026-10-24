@@ -171,12 +171,12 @@ test("act HTTP body cannot choose an agent source or override the actual caller 
   }
 });
 
-test("existing P1 four-argument evaluator works; supplied proposed context is not silently adopted", async () => {
+test("existing P1 four-argument evaluator works; malformed supplied context is rejected", async () => {
   const slip = await fixture("replay-compatibility");
   const normal = await evaluate(slip, consulting.allowed.name, slip.anchor!.blockTimestamp, AGENT_ID);
   assert.ok(normal.every((check) => check.pass));
   for (const context of [null, {}, { requestBlock: await mockLedger.latestReference() }]) {
     await assert.rejects(evaluate(slip, consulting.forbidden.name, slip.anchor!.blockTimestamp, AGENT_ID, context),
-      { status: 503, message: "Immutable original request context remains an unapproved integration extension." });
+      { status: 503, message: "The original request context could not be verified." });
   }
 });
