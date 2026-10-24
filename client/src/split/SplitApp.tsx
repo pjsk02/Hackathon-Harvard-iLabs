@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Receipt, ReportId, Slip, StateResponse } from "@shared/contract";
 import { AGENT_ID, MANDATE_ID } from "@shared/contract";
 import { consulting } from "@shared/scenarios";
-import { api, isMock } from "../api";
+import { api } from "../api";
 import { COPY, answerFrom, shownChecks, weekday } from "../labels";
 import BainePane from "./BainePane";
 import ChainColumn from "./ChainColumn";
@@ -35,11 +35,17 @@ export default function SplitApp() {
   const [preview, setPreview] = useState<Preview>("closed");
   const builtin = (reportId: ReportId): Attachment => ({ kind: "builtin", reportId, fileName: COPY.attachments[reportId] });
   const [attached, setAttached] = useState<Attachment>(builtin("clean"));
+  const [injectedUpload, setInjectedUpload] = useState<Attachment | null>(null);
+  const [examples, setExamples] = useState({ clean: false, poisoned: false });
+  const [activeStep, setActiveStep] = useState(1);
+  const [allowedReceipt, setAllowedReceipt] = useState<Receipt | null>(null);
   const [busy, setBusy] = useState(false);
   const [granting, setGranting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resetArmed, setResetArmed] = useState(false);
-  const [mockChain, setMockChain] = useState(false);
+  const [chainUnavailable, setChainUnavailable] = useState(false);
+  const operation = useRef(false);
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const token = useRef(0); // bumps on reset so a running choreography stops
 
   const refresh = useCallback(async () => {
@@ -54,8 +60,23 @@ export default function SplitApp() {
   }, []);
 
   useEffect(() => {
-    refresh().then((s) => s && setRevealed(new Set(s.receipts.map((r) => r.id))));
-    api.health().then((h) => setMockChain(h.mockChain)).catch(() => setMockChain(false));
+    refresh().then((s) => {
+      if (!s) return;
+      setRevealed(new Set(s.receipts.map((r) => r.id)));
+      if (s.slips.some((slip) => slip.label === "Original")) setActiveStep(2);
+      const latest = s.receipts[0];
+      if (latest) setStage({ action: latest.action, receipt: latest, phase: "done", checksShown: 5, earlier: null });
+    });
+    api.health().then((h) => {
+      setChainUnavailable(h.mockChain);
+      if (h.mockChain) setError("The server is using a practice chain; connect real Monad before running the demo.");
+    }).catch(() => {
+      setChainUnavailable(true);
+      setError("Could not verify the server configuration; reload before running the demo.");
+    });
+    return () => {
+      if (resetTimer.current) clearTimeout(resetTimer.current);
+    };
   }, [refresh]);
 
   const push = (item: FeedItem) => setFeed((f) => [...f, item]);
@@ -64,6 +85,8 @@ export default function SplitApp() {
 
   /** Wrap a beat: lock the controls, catch the one-sentence error. */
   async function beat(fn: (alive: () => boolean) => Promise<void>) {
+    if (operation.current || chainUnavailable) return;
+    operation.current = true;
     const mine = token.current;
     const alive = () => token.current === mine;
     setBusy(true);
@@ -73,14 +96,14 @@ export default function SplitApp() {
     } catch (e) {
       if (alive()) {
         setError((e as Error).message);
-        setStage(null);
         setPulse(null);
         setFeed((f) => f.map((x) => (x.kind === "status" && !x.done ? { ...x, done: true } : x)));
       }
     } finally {
       if (alive()) {
-        setBusy(false);
         await refresh();
+        setBusy(false);
+        operation.current = false;
       }
     }
   }
@@ -104,6 +127,7 @@ export default function SplitApp() {
     setStage((s) => s && { ...s, phase: "done" });
     setPulse(null);
     setRevealed((v) => new Set(v).add(r.id));
+    if (r.decision === "ALLOWED" && r.action === consulting.allowed.name) setAllowedReceipt(r);
     await sleep(350);
     if (!alive()) return;
     if (opts.bubble) patch(bubbleId, { verdict: r.decision });
@@ -117,10 +141,10 @@ export default function SplitApp() {
 
   const actions = {
     preview: () => {
-      if (attached.kind === "builtin") setAttached(builtin("poisoned"));
       setPreview((p) => (p === "closed" ? "open" : p === "open" ? "revealed" : "closed"));
     },
     grant: () => beat(async (alive) => {
+      setActiveStep(1);
       setGranting(true);
       try {
         await api.sign(data!.scenario.id);
@@ -130,18 +154,30 @@ export default function SplitApp() {
       if (!alive()) return;
       await refresh();
       push({ kind: "reply", id: nextId(), tone: "good", text: COPY.grant.reply, to: "agent" });
+      setActiveStep(2);
     }),
     upload: async (file: File) => {
+      if (operation.current) return;
+      operation.current = true;
+      setBusy(true);
       setError(null);
       try {
-        setAttached(await readUpload(file));
+        const upload = await readUpload(file);
+        setAttached(upload);
+        setInjectedUpload(upload);
         setPreview("open");
       } catch (e) {
         setError((e as Error).message);
+      } finally {
+        operation.current = false;
+        setBusy(false);
       }
     },
     ask: (which: ReportId | Attachment) => beat(async (alive) => {
       const att = typeof which === "string" ? builtin(which) : which;
+      const reportId = att.kind === "upload" ? "poisoned" : att.reportId;
+      setActiveStep(reportId === "clean" ? 2 : 3);
+      setAllowedReceipt(null);
       setPreview("closed");
       setAttached(att);
       const file = att.fileName;
@@ -171,8 +207,15 @@ export default function SplitApp() {
       const answer = allowed ? answerFrom(allowed.data) : null;
       if (answer) push({ kind: "answer", id: nextId(), text: answer });
       else if (ordered.length === 0) push({ kind: "answer", id: nextId(), text: "No data requested." });
+      setExamples((previous) => ({ ...previous, [reportId]: true }));
     }),
+    evidence: () => {
+      setActiveStep(4);
+      setPreview("closed");
+      document.getElementById("monad-evidence")?.focus({ preventScroll: true });
+    },
     force: () => beat(async (alive) => {
+      setAllowedReceipt(null);
       const r = await api.act({ agentId: AGENT_ID, mandateId: MANDATE_ID, action: data!.scenario.forbidden.name });
       if (!alive()) return;
       await refresh();
@@ -192,12 +235,15 @@ export default function SplitApp() {
       await reveal(r, alive, { bubble: false, earlier: null });
     }),
     reset: async () => {
+      if (operation.current) return;
       if (!resetArmed) {
         setResetArmed(true);
-        setTimeout(() => setResetArmed(false), 2500);
+        resetTimer.current = setTimeout(() => setResetArmed(false), 2500);
         return;
       }
+      if (resetTimer.current) clearTimeout(resetTimer.current);
       setResetArmed(false);
+      operation.current = true;
       token.current++;
       setBusy(true);
       try {
@@ -208,33 +254,40 @@ export default function SplitApp() {
         setRevealed(new Set());
         setPreview("closed");
         setAttached(builtin("clean"));
+        setInjectedUpload(null);
+        setExamples({ clean: false, poisoned: false });
+        setActiveStep(1);
+        setAllowedReceipt(null);
         setError(null);
       } catch (e) {
         setError((e as Error).message);
       } finally {
-        setBusy(false);
         await refresh();
+        setBusy(false);
+        operation.current = false;
       }
     },
   };
 
   const keys: { key: string; label: string; run: () => void; enabled: boolean; why?: string }[] = [
-    { key: "1", label: preview === "closed" ? "Open report" : preview === "open" ? "Show hidden" : "Close report", run: actions.preview, enabled: true },
-    { key: "2", label: "Grant", run: actions.grant, enabled: !original, why: "Already granted" },
-    { key: "3", label: "Ask · clean report", run: () => actions.ask("clean"), enabled: !!original, why: "Grant first" },
-    { key: "4", label: "Ask · hidden note", run: () => actions.ask("poisoned"), enabled: !!original, why: "Grant first" },
-    { key: "5", label: "Force comp request", run: actions.force, enabled: !!original, why: "Grant first" },
-    { key: "6", label: "Dispute", run: actions.dispute, enabled: hasBlocked && !disputed, why: hasBlocked ? "Already disputed" : "Block a request first" },
+    { key: "1", label: "Grant", run: actions.grant, enabled: !original && !chainUnavailable, why: chainUnavailable ? "Connect real Monad first" : "Already granted" },
+    { key: "2", label: "Clean example", run: () => actions.ask("clean"), enabled: !!original && !chainUnavailable, why: "Grant first" },
+    { key: "3", label: "Injected example", run: () => actions.ask(injectedUpload ?? "poisoned"), enabled: !!original && examples.clean && !chainUnavailable, why: original ? "Run the clean example first" : "Grant first" },
+    { key: "4", label: "Monad evidence", run: actions.evidence, enabled: !!original, why: "Grant first" },
+    { key: "r", label: preview === "closed" ? "Open report" : preview === "open" ? "Show hidden text" : "Close report", run: actions.preview, enabled: true },
+    { key: "5", label: "Force request", run: actions.force, enabled: !!original && !chainUnavailable, why: "Grant first" },
+    { key: "6", label: "Dispute", run: actions.dispute, enabled: hasBlocked && !disputed && !chainUnavailable, why: hasBlocked ? "Already disputed" : "Block a request first" },
     { key: "0", label: resetArmed ? "Press 0 again" : "Reset", run: actions.reset, enabled: true },
   ];
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.target instanceof HTMLInputElement) return;
-      const k = keys.find((x) => x.key === e.key);
+      if (e.metaKey || e.ctrlKey || e.altKey || e.repeat || e.defaultPrevented) return;
+      if (e.target instanceof HTMLElement && e.target.closest("input, textarea, select, [contenteditable='true']")) return;
+      const k = keys.find((x) => x.key === e.key.toLowerCase());
       if (!k || !k.enabled) return;
-      if (busy && k.key !== "0" && k.key !== "1") return;
+      if (busy) return;
+      e.preventDefault();
       k.run();
     };
     window.addEventListener("keydown", onKey);
@@ -243,29 +296,30 @@ export default function SplitApp() {
 
   if (!data) return <div className="stage-loading">{error ?? "Loading…"}</div>;
 
-  const scene = !original ? 1 : disputed ? 3 : 2;
+  const stepComplete = [!!original, examples.clean, examples.poisoned, false];
   const blocked = data.receipts.find((r) => r.decision === "BLOCKED" && r.kind === "action" && revealed.has(r.id)) ?? null;
 
   return (
-    <div className="stage">
+    <div className="stage" data-demo-busy={busy}>
       <header className="stage-header">
         <div className="stage-brand">
           <img src="/envoi-logo.png" alt="" />
           <span>Envoi</span>
-          {isMock && <span className="mock-badge">{COPY.mock}</span>}
-          {!isMock && mockChain && <span className="mock-badge">{COPY.mockChain}</span>}
         </div>
-        <ol className="stage-steps">
+        <ol className="stage-steps" aria-label="Demo order">
           {COPY.steps.map((s, i) => {
             const n = i + 1;
             return (
-              <li key={s} className={n === scene ? "current" : n < scene ? "done" : ""}>
-                <span className="step-n">{n < scene ? "✓" : n}</span> {s}
+              <li key={s} aria-current={n === activeStep ? "step" : undefined} className={n === activeStep ? "current" : stepComplete[i] ? "done" : ""}>
+                <span className="step-n">{stepComplete[i] && n !== activeStep ? "✓" : n}</span> {s}
               </li>
             );
           })}
         </ol>
-        <span className="stage-fictional">{COPY.fictional}</span>
+        <div className="stage-summary">
+          <span className="request-counter" aria-live="polite"><span className="counter-value" key={data.counter}>{data.counter}</span> requests checked</span>
+          <span className="stage-fictional">{COPY.fictional}</span>
+        </div>
       </header>
 
       <main className="stage-cols">
@@ -274,19 +328,24 @@ export default function SplitApp() {
           preview={preview}
           attachment={attached}
           previewParts={attached.kind === "upload" ? attached.parts : partsFromScenario(data.scenario.reports[attached.reportId])}
-          canSend={!!original && !busy}
+          canSend={!!original && !busy && !chainUnavailable && (attached.kind === "builtin" && attached.reportId === "clean" || examples.clean)}
+          canUpload={!busy}
+          sendReason={!original ? "Grant first" : !examples.clean && attached.kind === "upload" ? "Run the clean example first" : undefined}
           onSend={() => actions.ask(attached)}
           onUpload={actions.upload}
           onClosePreview={() => setPreview("closed")}
+          onToggleHidden={() => setPreview((p) => p === "revealed" ? "open" : "revealed")}
+          busy={busy}
         />
-        <ChainColumn slips={data.slips} blocked={blocked} pulse={pulse} />
+        <ChainColumn slips={data.slips} blocked={blocked} pulse={pulse} receipts={data.receipts.filter((r) => revealed.has(r.id))} review={activeStep === 4} />
         <MorganPane
           granted={!!original}
           granting={granting}
-          canGrant={!busy}
+          canGrant={!busy && !chainUnavailable}
           onGrant={actions.grant}
           stage={stage}
           error={error}
+          allowedReceipt={allowedReceipt}
         />
       </main>
 
@@ -294,12 +353,14 @@ export default function SplitApp() {
         {keys.map((k) => (
           <button
             key={k.key}
-            disabled={!k.enabled || (busy && k.key !== "0" && k.key !== "1")}
-            title={!k.enabled ? k.why : undefined}
+            disabled={!k.enabled || busy}
+            title={busy ? "Wait for the current operation to finish" : !k.enabled ? k.why : undefined}
+            aria-keyshortcuts={k.key.toUpperCase()}
+            data-key={k.key}
             onClick={k.run}
-            className={k.key === "0" && resetArmed ? "armed" : ""}
+            className={`${Number(k.key) >= 1 && Number(k.key) <= 4 ? "primary-step" : "auxiliary-key"} ${k.key === "0" && resetArmed ? "armed" : ""}`}
           >
-            <kbd>{k.key}</kbd> {k.label}
+            <kbd>{k.key.toUpperCase()}</kbd> {k.label}
           </button>
         ))}
         <span className="keys-note"><kbd>V</kbd> classic view</span>

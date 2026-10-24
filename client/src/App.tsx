@@ -14,8 +14,9 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || e.repeat || e.defaultPrevented) return;
+      if (e.target instanceof HTMLElement && e.target.closest("input, textarea, select, [contenteditable='true']")) return;
+      if (document.querySelector("[data-demo-busy='true']")) return;
       if (e.key === "v" || e.key === "V") setView((v) => (v === "stage" ? "classic" : "stage"));
     };
     window.addEventListener("keydown", onKey);

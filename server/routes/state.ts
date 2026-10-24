@@ -1,11 +1,16 @@
 // GET /api/state, POST /api/reset, GET /api/health (P3)
 import { Router } from "express";
+import type { RequestHandler } from "express";
 import type { HealthResponse, ResetResponse, StateResponse } from "../../shared/contract";
 import { DEFAULT_SCENARIO_ID, getScenario } from "../../shared/scenarios";
 import * as state from "../state";
 import { isMockChain, issuerAddressOrNull, rpcUrl } from "../chain";
 
 export const stateRouter = Router();
+
+export const captureResetGeneration: RequestHandler = (_req, _res, next) => {
+  state.withResetGeneration(state.getResetGeneration(), next);
+};
 
 stateRouter.get("/api/state", (_req, res) => {
   const body: StateResponse = {

@@ -10,7 +10,7 @@ export const CLIENT = S.client.name; // JT Morgan
 export const AGENT = S.agent.name; // Atlas
 
 export const COPY = {
-  steps: ["Grant", "Request", "Dispute"],
+  steps: ["Grant", "Clean example", "Injected example", "Monad evidence"],
   fictional: `${FIRM} and ${CLIENT} are fictional.`,
   headers: {
     firm: { name: FIRM.toUpperCase(), role: "consultant" },
@@ -26,11 +26,11 @@ export const COPY = {
   grant: {
     title: `Give ${AGENT} access to`,
     button: "Sign & put on Monad",
-    busy: "Signing…",
+    busy: "Signing & recording on Monad…",
     reply: "✓ Access granted: regional branch profitability only.",
   },
   analyst: "Find the two weakest regions.",
-  attachments: { clean: "Q3 Review.pdf", poisoned: "Q3 Review v2.pdf" },
+  attachments: { clean: "Q3 Review · clean report", poisoned: "Q3 Review · injected report" },
   why: "Why: hidden text in the report told me to.",
   replies: {
     ALLOWED: "✓ Here's regional branch profitability.",
@@ -43,12 +43,10 @@ export const COPY = {
   checking: "Checking Monad…",
   mayRead: `${AGENT} may read`,
   addedAfter: "Added after the request",
-  previewLabel: "HIDDEN TEXT · only the AI sees it",
+  previewLabel: "HIDDEN TEXT · included in extracted text",
   send: "Send",
   upload: { title: "Attach a report", sample: "Sample report with hidden text ↓" },
   forced: "forced",
-  mock: "MOCK",
-  mockChain: "MOCK CHAIN",
 };
 
 /** Request bubble text, e.g. "Send me employee compensation." */
@@ -90,7 +88,11 @@ export function shownChecks(checks: Check[], action: string): { id: string; pass
   return order
     .map((id) => checks.find((c) => c.id === id))
     .filter((c): c is Check => !!c && (c.pass ? ["signed", "stamped", "scope"].includes(c.id) : true))
-    .map((c) => ({ id: c.id, pass: c.pass, text: text[c.id][c.pass ? 0 : 1] }));
+    .map((c) => ({
+      id: c.id,
+      pass: c.pass,
+      text: c.pass ? text[c.id][0] : c.detail || text[c.id][1],
+    }));
 }
 
 export const time = (sec: number) => new Date(sec * 1000).toLocaleTimeString();

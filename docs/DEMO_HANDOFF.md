@@ -1,5 +1,7 @@
 # Envoi demo handoff prompt (paste into your coding agent)
 
+> **Current user decisions (2026-10-24) supersede the older script below:** Start with **1 Grant**, then **2 Clean example**, **3 Injected example**, **4 Monad evidence**. **R** opens/reveals the report; 5 Force and 6 Dispute are optional. No browser mocks, no elapsed-time detail. Follow the repo's UI skill with the chosen light theme. See [P3 acceptance](P3_ACCEPTANCE.md) for verified work and outstanding live dependencies.
+
 You are working in the Envoi hackathon repo on Replit. Read this whole file before changing anything. It covers three things: the scaffold and who owns what, the three-column stage screen, and the 90-second demo it has to support. When this file and older docs disagree, this file wins for the screen and the script. `ENVOI_BUILD_SPEC.md` still wins for the API contract.
 
 **The one rule for the screen.** The demo is 90 seconds and nobody reads a paragraph. Every on-screen string stays short (about 6 words). The exceptions are the report inside the attachment preview and the permission contents on Monad. If you add text, delete text somewhere else.
@@ -69,7 +71,7 @@ Action names stay `read_regional_margins` (shown as Regional branch profitabilit
 
 ### Run
 
-- **While building.** Set the secret `MOCK_CHAIN=1`, run `npm run dev`, and open `/?mock=1`. Every beat runs with no server logic, and a yellow MOCK badge shows.
+- **While building.** Run `npm run dev` against the real server APIs. Do not enable a practice chain or browser-only simulation. Isolated test fixtures are for automated tests, not the demo.
 - **Against the server.** Open `/`. The same keys call the real endpoints.
 - **Fallback layout.** Press **V**, or open `/?view=classic`, for the original one-screen view.
 
@@ -153,10 +155,11 @@ For the dispute, Baine's message appears, then Permission #2 is added to the Mon
 
 | Key | Does |
 | --- | --- |
-| 1 | Opens Q3 Review v2. Press again to reveal the hidden text, and again to close |
-| 2 | Grant (sign and put Permission #1 on Monad) |
-| 3 | Ask with the clean report |
-| 4 | Ask with v2 (hidden note) |
+| 1 | Grant (sign and put Permission #1 on Monad) |
+| 2 | Run the clean example |
+| 3 | Run the injected example, using the uploaded report when present |
+| 4 | Review Monad evidence and request-record status |
+| R | Open report, reveal hidden text, then close (also available as buttons) |
 | 5 | Force the compensation request (fallback if the AI refuses the bait) |
 | 6 | Dispute (enabled once a request is blocked) |
 | 0 | Reset (press twice) |
@@ -174,7 +177,6 @@ For the dispute, Baine's message appears, then Permission #2 is added to the Mon
 | `split/AttachmentPreview.tsx` | The report preview |
 | `split/split.css` | Styles |
 | `labels.ts` | Short names and copy |
-| `mock.ts` | Serves `?mock=1` |
 
 ---
 
@@ -218,10 +220,10 @@ Firms want outside AI agents working in their data, but today the only limit on 
 
 ## 5. Acceptance checklist for any change you make
 
-- [ ] `/?mock=1` runs keys 2, 3, 1, 1, 4, 6 end to end with no errors
+- [ ] Real APIs run keys 1, 2, 3, 4, with upload and R reveal; 5/6 are optional
 - [ ] On-screen strings stay short, and nothing new over about 6 words
 - [ ] None of the banned words appear anywhere in the rendered text
 - [ ] No page scroll at 1440 × 900 and 125% zoom
-- [ ] Every outcome comes from an API response, and the browser never decides ALLOWED, BLOCKED or REJECTED (the exception is the mock, behind its badge)
+- [ ] Every outcome comes from a real API response, and the browser never decides ALLOWED, BLOCKED or REJECTED
 - [ ] Only permissions appear as Monad blocks, and requests are never drawn as blocks
 - [ ] No files changed outside your ownership

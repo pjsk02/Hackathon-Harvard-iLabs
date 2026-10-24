@@ -4,7 +4,7 @@ From Rachel (P3). The screen side is done and pushed. These are the pieces only 
 
 ## What the screen does now
 
-- The Baine column has a 📎 button. A person uploads a Word (`.docx`), `.txt`, `.md` or `.html` report. The browser extracts **all** the text, including text styled to be invisible (Word's Hidden effect, white text, tiny or 0-size font, `display:none`), and shows the hidden parts in red when the driver presses 1.
+- The Baine column has an attachment button. A person uploads a Word (`.docx`), `.txt`, `.md` or `.html` report. The browser extracts text including supported hidden styling and reveals hidden parts with **R** or **Show hidden text**.
 - The demo file is `/samples/JT-Morgan-Q3-Data-Request.docx` (link under the chat box): JT Morgan's Q3 data request with the note to the assistant in white 1pt text.
 - On Send, the client calls:
 
@@ -14,7 +14,8 @@ POST /api/agent/run
 ```
 
 - `upload` is a new **optional** field on `AgentRunRequest` in `shared/contract.ts` (additive; old calls without it are unchanged). The response shape is unchanged.
-- If the model's `transcript` does not start with `(stub)` or `(mock)`, the screen shows it as Atlas's own line in the chat (trimmed to 160 characters). So the real model's words appear live.
+- Stub/mock transcripts now fail visibly rather than being silently hidden while scripted outcomes are shown as live AI.
+- Demo keys: **1 Grant → 2 Clean example → 3 Injected example → 4 Monad evidence**. An uploaded injected report is retained while the clean example runs.
 
 ## P2 (agent, route): what to change
 
@@ -44,5 +45,26 @@ Your plan (`P1_IMPLEMENTATION_PLAN.md`) proposes block-order evidence and pendin
 Today only permissions are blocks; a blocked request is a dashed time marker in the Monad column. If every decision gets its own Monad transaction:
 
 - Please carry it in an **additive** field on `Receipt`, e.g. `anchor?: Anchor | null` (same shape as the slip's anchor), rather than reusing `receipt.explorerUrl`, which today points at the slip that was checked (the dispute scene depends on that).
-- The screen will then link the dashed marker to the request's own block and show its block number, and the dispute bracket can use block numbers instead of seconds.
+- After the response shape is agreed, the screen can link each attempt to its own record. Rachel does not want an elapsed-time/bracket display; block ordering still matters to the backend decision.
 - `MOCK_CHAIN` is already removed from the development environment (Rachel, Oct 24). Grant shows "The Monad connection is not built yet" until your `ledger.ts` and `slip.ts` land. The `ISSUER_PRIVATE_KEY` secret must be added in this Repl's Secrets (workspace **and** deployment); it does not travel with the git push.
+
+## Reset-generation interface for Aman and Jay
+
+P3 now exports these functions from `server/state.ts` without changing `shared/contract.ts`:
+
+```ts
+getResetGeneration(): number
+isCurrentGeneration(expected: number): boolean
+assertCurrentGeneration(expected: number): void
+withResetGeneration<T>(expected: number, work: () => T): T
+addSlip(slip: Slip, expectedGeneration?: number): Slip
+addReceipt(receipt: NewReceipt, expectedGeneration?: number): Receipt
+```
+
+- Capture the generation **before the first await**. Include it in retry/idempotency cache keys; do not reuse results from an older generation.
+- Check `assertCurrentGeneration(generation)` before returning cached/reconciled results, and pass the captured generation on state writes made outside an API request.
+- P3 mounted request-context middleware before every API router. Existing `addSlip`/`addReceipt` calls inherit the starting generation across awaits automatically and reject stale writes with 409 `{error:"The demo was reset; start this action again."}`.
+- Reset increments the generation before clearing memory. It cannot cancel or erase a record already broadcast to Monad; the guard only prevents it from appearing as a new-session result.
+- `npm run test:state` passes nine checks, including a concurrent HTTP reset. The full P1 retry-cache/P2 original-request integration still requires their updated code and tests.
+
+Aman's report of 38 passing offline tests is positive but not a live-integration pass. His updated interfaces were not yet present on fetched `main` when this hook was added; adapt names explicitly together if his proposal differs.

@@ -11,26 +11,30 @@ Owner: Rachel (P3). Source of truth: `ENVOI_BUILD_SPEC.md` (sections 7, 8, 11) a
 
 ## 2. Where things stand
 
-- Scaffold is merged: one Express process, Vite React client, in-memory state, `/api/state`, `/api/reset`, `/api/health`, contract and consulting scenario, `MOCK_CHAIN=1` in dev.
-- Every P1/P2 route already exists in contract shape (stubbed slip signing, mock ledger, canned agent proposals, selftest returns 501). The UI can be finished end to end today against these.
-- Client is at "wired scaffold" level: buttons, keyboard shortcuts, basic slip card, plain decision cards, a text list for the public record. Missing: check stagger + stamp animation, full slip and amended cards, "Atlas asks for" chips, margins table, plotted timeline with dispute bracket, `?mock=1`, counter roll, reset confirm, reduced motion.
+- Current audit and verification evidence: [P3_ACCEPTANCE.md](P3_ACCEPTANCE.md).
+- Stage controls follow Rachel's current order: **1 Grant → 2 Clean example → 3 Injected example → 4 Monad evidence**. R previews/reveals the report; 5 Force and 6 Dispute are optional, not the primary story.
+- P3's client and reset-generation protection are implemented. Complete live acceptance still requires P1/P2 integration and a published rehearsal.
+- `MOCK_CHAIN` remains off. Browser-only mock mode has been removed; even `?mock=1` uses live API calls.
+- Rachel explicitly removed the elapsed-time/bracket display from scope. Underlying permission/request ordering must still be correct.
 
 ## 3. Decisions
 
 - **Brand:** keep the current light theme in `client/src/styles.css` (porcelain/navy/blue, Segoe UI Light, logo) — it is the most recent deliberate change and replaces the dark tokens in spec section 8. Keep the spec's rules that matter on a projector: stamp words ≥ 40px, good/bad colors, mono for evidence.
-- **Outcome is never decided in the browser.** The UI only renders receipts and slips from the server. The only exception is `?mock=1`, which shows a MOCK badge.
+- **Outcome is never decided in the browser.** The UI only renders server results, with no browser mock exception; scripted agent responses are shown as an error rather than presented as live AI.
 - **No protected data in the client.** Margins appear only from `receipt.data`.
+- **UI guidance:** follow the GitHub repo's `.agents/skills/envoi-ui/SKILL.md` for every UI change; the current light theme and the user's latest flow override older dark-theme/driver-order examples.
+- **Truthful evidence:** a permission's explorer URL is not proof an attempt was recorded. Until the agreed attempt-evidence fields arrive, attempts say “Not recorded on Monad.”
 
 ## 4. Integration contract with P1 and P2 (what the UI must handle)
 
 ### From P1 (chain, slips, dispute)
 | Fact | UI consequence |
 | --- | --- |
-| `POST /api/slips` returns a Slip with `label:"Original"`; on the real chain it takes ~1–3 s | Show "Northwind is signing. Stamping on Monad…"; all buttons disabled |
+| `POST /api/slips` returns a Slip with `label:"Original"` | Show “Signing & recording on Monad…”; all controls disabled until completion |
 | `slip.anchor` can be `null` in the type | Render "Not stamped yet" instead of crashing |
 | Stamp time = `anchor.blockTimestamp` (chain time, unix seconds) | Always format chain seconds, never `createdAt` |
 | `POST /api/dispute` creates a Slip `label:"Amended"`, `mandateId northwind-atlas-001-amended`, `issuedAt` = Monday 9:00 AM New York | "Dated" line formats `mandate.issuedAt` (do not hardcode "Monday") |
-| Dispute receipt: `kind:"dispute"`, `source:"forced"`, `decision:"REJECTED"`, `actionTime` = the blocked request's time, `explorerUrl` = amended stamp | Scene 3 is detected by `kind:"dispute"`; bracket = amended `anchor.blockTimestamp − blocked actionTime` |
+| Dispute receipt: `kind:"dispute"`, `source:"forced"`, `decision:"REJECTED"`, `actionTime` = original blocked request | Optional dispute view; “Added after the request” only when the failed stamped check actually reports that cause; no elapsed-time bracket |
 | Dispute waits for chain time to pass the blocked request, so it can take several seconds | Keep loading state; no client timeout below 20 s |
 | 409 "Run the hidden note scene first." / "Sign the permission slip first." | Show sentence in bouncer column |
 | With real chain, `stamped` can fail with "Could not reach Monad to verify the stamp" | Show the check's `detail` as-is |
@@ -38,13 +42,13 @@ Owner: Rachel (P3). Source of truth: `ENVOI_BUILD_SPEC.md` (sections 7, 8, 11) a
 ### From P2 (bouncer, agent, selftest)
 | Fact | UI consequence |
 | --- | --- |
-| Checks always five, order signed, agent, valid, stamped, scope; labels come from server | Render `receipt.checks` verbatim; never rename |
+| Checks always five, order signed, agent, valid, stamped, scope | Stage shows three summary passes plus every failure; failed details remain verbatim (current handoff overrides the older five-visible-check layout) |
 | `/api/agent/run` returns 1–3 receipts (poisoned run usually margins + salaries) | Show up to 2 cards, BLOCKED/REJECTED on top |
 | Agent may fail with 502 "The AI service did not answer. Use Force the request." | Show sentence; Force button stays usable |
 | `proposedCalls` may contain an unknown tool name | Chip falls back to a readable label, never crashes |
 | ALLOWED margins `data` is an array of `{region, revenueM, marginPct, changePts}` | Margins table: Region, Margin %; bold the two lowest |
 | `/api/selftest` returns `{pass, steps}` (501 until P2 lands it) | Pre-flight panel shows "not built yet" until then |
-| `/api/health` returns `{ok, mockChain, issuer, rpc}` | Header shows a small "MOCK CHAIN" badge whenever `mockChain` is true, so nobody rehearses on the mock by mistake |
+| `/api/health` returns `{ok, mockChain, issuer, rpc}` | Refuse the live demo when the server is in practice-chain mode; a false flag alone is not proof of a verified Monad connection |
 
 ### Gate checks that involve P3
 - **Gate 1 (10:45):** UI renders slip, checks and receipts on the mock chain.
@@ -57,22 +61,23 @@ Owner: Rachel (P3). Source of truth: `ENVOI_BUILD_SPEC.md` (sections 7, 8, 11) a
 1. **Bouncer column** — 120 ms check stagger, stamp landing, BLOCKED card on top, ALLOWED margins table, REJECTED copy, errors as one sentence.
 2. **Slip column** — full original card (For / Can see / Cannot see / Valid until / Signed / Stamped with time + block / public record link), amended card for scene 3, original dims to 60%.
 3. **Report column** — hidden note invisible but in DOM; reveal cross-fade; "Atlas asks for" chips colored by decision, "forced" tag; scene 3 quote card.
-4. **Public record timeline** — markers plotted by chain time, labels, explorer links, dispute bracket "stamped Xm Ys after the request".
-5. **Header + control bar** — step pills, counter roll, MOCK / MOCK CHAIN badges, disabled-reason tooltips, Reset "press again" confirm, keys 0–6.
-6. **`?mock=1` client mock** — contract-shaped fake responses, 900 ms delay, all six steps.
+4. **Public record** — chronological permission and request records, distinct provenance, genuine permission explorer links; no elapsed-time display.
+5. **Header + control bar** — four ordered steps, request counter, disabled-reason tooltips, Reset “press again” confirm, keys 0–6 and R.
+6. **Real-only demo** — no client simulation route; clearly fail when P1/P2 services are not ready.
 7. **Pre-flight panel (`?preflight=1`)** — health + run self-test, for rehearsals and after each deploy.
 8. **Polish** — reduced motion, 1440×900 at 125% with no page scroll, jargon sweep of rendered text.
 9. **Stretch, only after Gate 3** — scenario picker.
 
 ## 6. Acceptance (P3 done)
 
-- `?mock=1` runs all six steps end to end with the MOCK badge.
+- No query parameter activates simulated results.
 - Without mock, every button calls its endpoint; errors show as one sentence.
 - 1440×900 at 125%: no page scroll; stamp words ≥ 40px.
-- Hidden note invisible until key 1, still in DOM text.
+- Hidden note invisible until R or “Show hidden text”, still in DOM/extracted upload text.
 - Two receipts → BLOCKED card on top.
-- Scene 3 shows both slip cards, the REJECTED card and the timeline bracket.
+- Optional dispute shows both slip cards and the server's decision; no fabricated timing explanation on RPC errors.
 - Rendered text never contains mandate, gateway, digest, hash, EIP-712, nonce, transaction.
-- Keys 0–6 work; reduced motion shows final states.
+- Keys 0–6 and R work; reduced motion shows final states.
 - No files changed outside P3 paths.
+- Reset increments a generation and rejects writes from operations started in an earlier generation.
 - Deployed as Reserved VM; demo URL loads; secrets present in the deployment.

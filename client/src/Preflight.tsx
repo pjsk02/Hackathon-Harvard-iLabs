@@ -37,10 +37,10 @@ export default function Preflight() {
         {health && (
           <ul className="plain">
             <li className={health.ok ? "good" : "bad"}>{health.ok ? "✓" : "✕"} Server answers</li>
-            <li className={health.mockChain ? "bad" : "good"}>
-              {health.mockChain ? "✕ Practice chain (MOCK_CHAIN=1). Do not rehearse on this." : "✓ Real Monad testnet"}
+            <li className={health.mockChain ? "bad" : "muted"}>
+              {health.mockChain ? "✕ Practice chain configured; the live demo is blocked." : "Real-chain mode selected; connection still needs verification."}
             </li>
-            <li className={health.issuer ? "good" : "bad"}>{health.issuer ? `✓ Signer ${health.issuer.slice(0, 6)}…${health.issuer.slice(-4)}` : "✕ No signer key"}</li>
+            <li className={health.issuer ? "muted" : "bad"}>{health.issuer ? `Reported signer: ${health.issuer.slice(0, 6)}…${health.issuer.slice(-4)}; signing not yet verified.` : "✕ No signer configured"}</li>
             <li className="mono">Network: {health.rpc}</li>
           </ul>
         )}

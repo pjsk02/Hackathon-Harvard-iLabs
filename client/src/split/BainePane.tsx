@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { AGENT, CLIENT, COPY, FIRM, requestText } from "../labels";
 import AttachmentPreview from "./AttachmentPreview";
+import AttachmentIcon from "./AttachmentIcon";
 import type { FeedItem, Preview } from "./types";
 import { ACCEPT, type Attachment, type Part } from "./upload";
 
@@ -12,16 +13,21 @@ type Props = {
   attachment: Attachment;
   previewParts: Part[];
   canSend: boolean;
+  canUpload: boolean;
+  sendReason?: string;
+  busy: boolean;
   onSend: () => void;
   onUpload: (file: File) => void;
   onClosePreview: () => void;
+  onToggleHidden: () => void;
 };
 
-export default function BainePane({ feed, preview, attachment, previewParts, canSend, onSend, onUpload, onClosePreview }: Props) {
-  const end = useRef<HTMLDivElement>(null);
+export default function BainePane({ feed, preview, attachment, previewParts, canSend, canUpload, sendReason, busy, onSend, onUpload, onClosePreview, onToggleHidden }: Props) {
+  const log = useRef<HTMLDivElement>(null);
   const picker = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    end.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+    const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+    log.current?.scrollTo({ top: log.current.scrollHeight, behavior });
   }, [feed]);
 
   return (
@@ -31,37 +37,37 @@ export default function BainePane({ feed, preview, attachment, previewParts, can
         <span className="pane-role">{COPY.headers.firm.role}</span>
       </h2>
 
-      <div className="feed">
+      <div className="feed" ref={log} role="log" aria-label="Atlas conversation" aria-live="polite">
         {feed.length === 0 && <p className="empty">{COPY.empty.firm}</p>}
         {feed.map((item) => <FeedRow key={item.id} item={item} />)}
-        <div ref={end} />
       </div>
 
       <div className="composer">
         <div className="composer-field">
           <span>{COPY.analyst}</span>
-          <span className="clip">📎 {attachment.fileName}</span>
+          <span className="clip"><AttachmentIcon /> {attachment.fileName}</span>
         </div>
         <input
           ref={picker}
           type="file"
           accept={ACCEPT}
           hidden
+          disabled={!canUpload}
           onChange={(e) => {
             const f = e.target.files?.[0];
             if (f) onUpload(f);
             e.target.value = "";
           }}
         />
-        <button className="attach" onClick={() => picker.current?.click()} disabled={!canSend} title={COPY.upload.title} aria-label={COPY.upload.title}>
-          📎
+        <button className="attach" onClick={() => picker.current?.click()} disabled={!canUpload} title={COPY.upload.title} aria-label={COPY.upload.title}>
+          <AttachmentIcon />
         </button>
-        <button onClick={onSend} disabled={!canSend}>{COPY.send}</button>
+        <button onClick={onSend} disabled={!canSend} title={!canSend ? sendReason : undefined}>{COPY.send}</button>
       </div>
       <a className="sample-link" href="/samples/JT-Morgan-Q3-Data-Request.docx" download>{COPY.upload.sample}</a>
 
       {preview !== "closed" && (
-        <AttachmentPreview fileName={attachment.fileName} parts={previewParts} revealed={preview === "revealed"} onClose={onClosePreview} />
+        <AttachmentPreview fileName={attachment.fileName} parts={previewParts} revealed={preview === "revealed"} onClose={onClosePreview} onToggleHidden={onToggleHidden} busy={busy} />
       )}
     </section>
   );
@@ -75,7 +81,7 @@ function FeedRow({ item }: { item: FeedItem }) {
         <div className="msg msg-user">
           <div className="who">{item.kind === "analyst" ? "Analyst" : FIRM}</div>
           <p>{item.text}</p>
-          <span className="clip">📎 {item.attachment}</span>
+          <span className="clip"><AttachmentIcon /> {item.attachment}</span>
         </div>
       );
     case "status":

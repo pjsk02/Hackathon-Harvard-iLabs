@@ -1,9 +1,11 @@
 // Classic one-screen view: the fallback layout. Press V or open /?view=classic.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Receipt, ReportId, Slip, StateResponse } from "@shared/contract";
 import { AGENT_ID, MANDATE_ID } from "@shared/contract";
 import { actionLabel } from "@shared/scenarios";
 import { api } from "../api";
+import { COPY } from "../labels";
+import { recordedAnchor } from "../split/evidence";
 
 const short = (h: string) => (h.length > 12 ? `${h.slice(0, 6)}…${h.slice(-4)}` : h);
 const time = (sec: number) => new Date(sec * 1000).toLocaleTimeString();
@@ -15,6 +17,10 @@ export default function ClassicApp() {
   const [lastRun, setLastRun] = useState<Receipt[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeStep, setActiveStep] = useState(1);
+  const [examples, setExamples] = useState({ clean: false, poisoned: false });
+  const [resetArmed, setResetArmed] = useState(false);
+  const operation = useRef(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -29,6 +35,8 @@ export default function ClassicApp() {
   }, [refresh]);
 
   async function run(label: string, fn: () => Promise<void>) {
+    if (operation.current) return;
+    operation.current = true;
     setBusy(label);
     setError(null);
     try {
@@ -36,8 +44,9 @@ export default function ClassicApp() {
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      setBusy(null);
       await refresh();
+      setBusy(null);
+      operation.current = false;
     }
   }
 
@@ -45,7 +54,7 @@ export default function ClassicApp() {
   const original = data?.slips.find((s) => s.label === "Original");
   const amended = data?.slips.find((s) => s.label === "Amended");
   const hasBlocked = !!data?.receipts.some((r) => r.decision === "BLOCKED");
-  const scene = !original ? 1 : data?.receipts.some((r) => r.kind === "dispute") ? 3 : 2;
+  const complete = [!!original, examples.clean, examples.poisoned, false];
 
   const actions = {
     hidden: () => {
@@ -53,16 +62,26 @@ export default function ClassicApp() {
       setActiveReport("poisoned");
     },
     sign: () => run("JT Morgan is signing. Stamping on Monad…", async () => {
+      setActiveStep(1);
       await api.sign(scenario!.id);
+      setActiveStep(2);
     }),
     clean: () => run("Checking the slip with Monad…", async () => {
       setActiveReport("clean");
+      setActiveStep(2);
       setLastRun((await api.run("clean")).receipts);
+      setExamples((previous) => ({ ...previous, clean: true }));
     }),
     poisoned: () => run("Checking the slip with Monad…", async () => {
       setActiveReport("poisoned");
+      setActiveStep(3);
       setLastRun((await api.run("poisoned")).receipts);
+      setExamples((previous) => ({ ...previous, poisoned: true }));
     }),
+    evidence: () => {
+      setActiveStep(4);
+      document.getElementById("classic-record")?.focus({ preventScroll: true });
+    },
     force: () => run("Checking the slip with Monad…", async () => {
       setActiveReport("poisoned");
       const r = await api.act({ agentId: AGENT_ID, mandateId: MANDATE_ID, action: scenario!.forbidden.name });
@@ -71,29 +90,41 @@ export default function ClassicApp() {
     dispute: () => run("Checking the slip with Monad…", async () => {
       setLastRun([await api.dispute()]);
     }),
-    reset: () => run("Resetting…", async () => {
-      await api.reset();
-      setLastRun([]);
-      setRevealHidden(false);
-      setActiveReport("clean");
-    }),
+    reset: () => {
+      if (!resetArmed) {
+        setResetArmed(true);
+        setTimeout(() => setResetArmed(false), 2500);
+        return;
+      }
+      setResetArmed(false);
+      return run("Resetting…", async () => {
+        await api.reset();
+        setLastRun([]);
+        setRevealHidden(false);
+        setActiveReport("clean");
+        setExamples({ clean: false, poisoned: false });
+        setActiveStep(1);
+      });
+    },
   };
 
   const buttons: { key: string; label: string; onClick: () => void; enabled: boolean; why?: string }[] = [
-    { key: "1", label: "Show hidden text", onClick: actions.hidden, enabled: true },
-    { key: "2", label: "Sign & stamp", onClick: actions.sign, enabled: !original, why: "Already signed" },
-    { key: "3", label: "Run · clean report", onClick: actions.clean, enabled: !!original, why: "Sign the slip first" },
-    { key: "4", label: "Run · hidden note", onClick: actions.poisoned, enabled: !!original, why: "Sign the slip first" },
+    { key: "1", label: "Grant", onClick: actions.sign, enabled: !original, why: "Already granted" },
+    { key: "2", label: "Clean example", onClick: actions.clean, enabled: !!original, why: "Grant first" },
+    { key: "3", label: "Injected example", onClick: actions.poisoned, enabled: !!original && examples.clean, why: "Run the clean example first" },
+    { key: "4", label: "Monad evidence", onClick: actions.evidence, enabled: !!original, why: "Grant first" },
+    { key: "r", label: revealHidden ? "Hide hidden text" : "Show hidden text", onClick: actions.hidden, enabled: true },
     { key: "5", label: "Force salary request", onClick: actions.force, enabled: !!original, why: "Sign the slip first" },
-    { key: "6", label: "Replay the dispute", onClick: actions.dispute, enabled: hasBlocked, why: "Block a request first" },
-    { key: "0", label: "Reset", onClick: actions.reset, enabled: true },
+    { key: "6", label: "Replay the dispute", onClick: actions.dispute, enabled: hasBlocked && !amended, why: amended ? "Already disputed" : "Block a request first" },
+    { key: "0", label: resetArmed ? "Press 0 again" : "Reset", onClick: actions.reset, enabled: true },
   ];
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (busy || e.metaKey || e.ctrlKey || e.altKey) return;
-      const b = buttons.find((x) => x.key === e.key);
-      if (b?.enabled) b.onClick();
+      if (busy || e.metaKey || e.ctrlKey || e.altKey || e.repeat || e.defaultPrevented) return;
+      if (e.target instanceof HTMLElement && e.target.closest("input, textarea, select, [contenteditable='true']")) return;
+      const b = buttons.find((x) => x.key === e.key.toLowerCase());
+      if (b?.enabled) { e.preventDefault(); b.onClick(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -105,7 +136,7 @@ export default function ClassicApp() {
   const ordered = [...lastRun].sort((a, b) => Number(a.decision === "ALLOWED") - Number(b.decision === "ALLOWED"));
 
   return (
-    <div className="app">
+    <div className="app" data-demo-busy={!!busy}>
       <header className="header">
         <div className="brand">
           <img className="logo" src="/envoi-logo.png" alt="" />
@@ -113,9 +144,9 @@ export default function ClassicApp() {
           <span className="muted">{scenario.client.name} ↔ {scenario.firm.name}</span>
         </div>
         <ol className="steps">
-          {["Slip", "AI at work", "Dispute"].map((s, i) => (
-            <li key={s} className={i + 1 === scene ? "current" : i + 1 < scene ? "done" : ""}>
-              {i + 1} {s} {i + 1 < scene && "✓"}
+          {COPY.steps.map((s, i) => (
+            <li key={s} className={i + 1 === activeStep ? "current" : complete[i] ? "done" : ""} aria-current={i + 1 === activeStep ? "step" : undefined}>
+              {i + 1} {s} {complete[i] && "✓"}
             </li>
           ))}
         </ol>
@@ -128,7 +159,7 @@ export default function ClassicApp() {
           {original ? <SlipCard slip={original} /> : (
             <div className="card dashed">
               <p>JT Morgan hasn&apos;t granted Atlas access yet.</p>
-              <p className="muted">Press Sign &amp; stamp.</p>
+              <p className="muted">Press 1 · Grant.</p>
             </div>
           )}
           {amended && <SlipCard slip={amended} />}
@@ -137,8 +168,8 @@ export default function ClassicApp() {
         <section className="col">
           <h2>What Atlas is reading</h2>
           <div className="segmented">
-            <button className={activeReport === "clean" ? "on" : ""} onClick={() => setActiveReport("clean")}>Clean report</button>
-            <button className={activeReport === "poisoned" ? "on" : ""} onClick={() => setActiveReport("poisoned")}>Report with hidden note</button>
+            <button disabled={!!busy} className={activeReport === "clean" ? "on" : ""} onClick={() => setActiveReport("clean")}>Clean report</button>
+            <button disabled={!!busy} className={activeReport === "poisoned" ? "on" : ""} onClick={() => setActiveReport("poisoned")}>Report with hidden note</button>
           </div>
           <article className="card doc">
             {report.split("\n\n").map((para, i) => {
@@ -163,14 +194,14 @@ export default function ClassicApp() {
         </section>
       </main>
 
-      <section className="record">
+       <section className="record" id="classic-record" tabIndex={-1}>
         <h2>Public record</h2>
         {data!.receipts.length === 0 && data!.slips.length === 0
           ? <p className="muted">No permissions yet.</p>
           : (
             <ul className="mono small events">
-              {data!.slips.map((s) => s.anchor && <li key={s.anchor.txHash}>● {time(s.anchor.blockTimestamp)} {s.label === "Original" ? "Slip stamped" : "Monday slip stamped"}</li>)}
-              {[...data!.receipts].reverse().map((r) => <li key={r.id} className={r.decision === "ALLOWED" ? "good" : "bad"}>● {time(r.actionTime)} {r.decision}</li>)}
+              {data!.slips.map((s) => recordedAnchor(s.anchor) && s.anchor && <li key={s.anchor.txHash}><a href={s.anchor.explorerUrl} target="_blank" rel="noreferrer">● {time(s.anchor.blockTimestamp)} {s.label === "Original" ? "Slip recorded" : "Amended slip recorded"} ↗</a></li>)}
+              {[...data!.receipts].reverse().map((r) => <li key={r.id} className={r.decision === "ALLOWED" ? "good" : "bad"}>● {time(r.actionTime)} {r.decision} · application record, not on Monad</li>)}
             </ul>
           )}
       </section>
@@ -178,7 +209,7 @@ export default function ClassicApp() {
       <footer className="controls">
         {buttons.map((b) => (
           <button key={b.key} className="ghost" disabled={!!busy || !b.enabled} title={!b.enabled ? b.why : undefined} onClick={b.onClick}>
-            <kbd>{b.key}</kbd> {b.label}
+            <kbd>{b.key.toUpperCase()}</kbd> {b.label}
           </button>
         ))}
       </footer>
@@ -190,10 +221,10 @@ function SlipCard({ slip }: { slip: Slip }) {
   const amended = slip.label === "Amended";
   return (
     <div className={`card slip ${amended ? "amended" : ""}`}>
-      <div className="row"><strong>{amended ? "SLIP MERIDIAN SHOWED AFTERWARDS" : "PERMISSION SLIP"}</strong><span className="muted">{slip.label}</span></div>
+      <div className="row"><strong>{amended ? "AMENDED PERMISSION SLIP" : "PERMISSION SLIP"}</strong><span className="muted">{slip.label}</span></div>
       <p>Can see: {slip.mandate.allowedActions.map((a) => actionLabel(a)).join(", ")}</p>
-      <p className="good">✓ Signed by JT Morgan</p>
-      {slip.anchor && (
+      <p className="muted">Signature checked with every request.</p>
+      {recordedAnchor(slip.anchor) && slip.anchor && (
         <>
           <p className="mono small">✓ Stamped on Monad · {time(slip.anchor.blockTimestamp)} · block {slip.anchor.blockNumber.toLocaleString()} · {short(slip.anchor.txHash)}</p>
           <a href={slip.anchor.explorerUrl} target="_blank" rel="noreferrer">View on public record ↗</a>

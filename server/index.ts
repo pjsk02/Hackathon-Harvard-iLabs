@@ -3,7 +3,7 @@ import express from "express";
 import { createServer } from "node:http";
 import path from "node:path";
 import { errorHandler } from "./http";
-import { stateRouter } from "./routes/state";
+import { captureResetGeneration, stateRouter } from "./routes/state";
 import { slipsRouter } from "./routes/slips";
 import { actRouter } from "./routes/act";
 import { agentRouter } from "./routes/agent";
@@ -17,6 +17,7 @@ const app = express();
 app.use(express.json());
 
 // Route mounting (P3). Each router owns its own /api paths.
+app.use("/api", captureResetGeneration);
 app.use(stateRouter);
 app.use(slipsRouter);
 app.use(actRouter);
