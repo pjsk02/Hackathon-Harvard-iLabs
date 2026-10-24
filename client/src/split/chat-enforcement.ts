@@ -5,6 +5,10 @@ const sameRequest = (a: Conversation, b: Conversation) => a.task === b.task &&
   a.report?.fileName === b.report?.fileName && a.report?.text === b.report?.text;
 
 export function chatEnforcement(message: Conversation, conversations: Conversation[], receipts: Receipt[]) {
+  if(message.mode==="document")return {state:"document" as const,run:message,text:"Document chat only · no protected-data access",action:"View request"};
+  if(message.mode==="enforced" && (!message.permissionId || message.enforcement?.status==="unknown" || message.enforcement?.status==="unavailable"))return {
+    state:"pending" as const,run:message,text:message.enforcement?.detail ?? "Permission enforcement is not confirmed",action:"View request",
+  };
   let run: Conversation | undefined = message.permissionId ? message : undefined;
   // A repeated message starts a new request. Never borrow an earlier result or
   // evidence belonging to the next identical chat message.
@@ -16,7 +20,7 @@ export function chatEnforcement(message: Conversation, conversations: Conversati
       run = item;
     }
   }
-  if (!run) return { state: "not-run" as const, run: message, text: "Not enforced yet", action: "Enforce permission slip" };
+  if (!run) return { state: "not-run" as const, run: message, text: "No saved permission enforcement", action: "View request" };
   if (run.status !== "complete") return {
     state: "pending" as const, run,
     text: run.status === "pending" ? "Enforcement in progress" : "Enforcement outcome unknown",

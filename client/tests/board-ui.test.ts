@@ -42,10 +42,10 @@ async function fixture(path="/"){
     }
     if(url.pathname==="/api/workspace"){await respond(state);return;}
     if(url.pathname==="/api/workspace/draft"){state.draft=body;await respond({ok:true});return;}
-    if(url.pathname==="/api/workspace/chat"){
+    if(url.pathname==="/api/workspace/submit"){
       const id=`chat-${state.conversations.length}`;
-      state.conversations.push({id,task:body.task,report:body.report,permissionId:"",createdAt:now,transcript:"**Fresh answer**\n\n1. First item\n2. Second item",receiptIds:[],status:"complete"});state.currentTransaction?.conversationIds.push(id);
-      await respond({ok:true});return;
+      state.conversations.push({id,mode:body.mode,task:body.task,report:body.report,permissionId:"",createdAt:now,transcript:"**Fresh answer**\n\n1. First item\n2. Second item",receiptIds:[],status:"complete"});state.currentTransaction?.conversationIds.push(id);
+      await respond({...state,submissionId:id});return;
     }
     await respond({error:"Unexpected fixture API"},404);
   });
@@ -105,8 +105,8 @@ test("fresh and restored Atlas replies render safely and wide content stays insi
     assert.equal(await h.page.$eval(".bubble:not(.atlas) pre",el=>el.textContent),"**User text stays plain**");
     const safe=await h.page.$('.atlas-reply a[href="https://example.com/report"]');assert.equal(await safe?.evaluate(el=>el.getAttribute("target")),"_blank");
     await h.page.setViewport({width:390,height:844});assert.ok(await h.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
-    await h.page.type("#task","A new question");await click(h.page,"Send message");await h.page.waitForFunction(()=>[...document.querySelectorAll(".atlas-reply strong")].some(el=>el.textContent==="Fresh answer"));
-    const sent=h.calls.find(c=>c.path.endsWith("/chat"));assert.equal(sent?.body.transactionId,caseId);assert.equal(h.state.conversations[0].transcript,text);
+    await h.page.type("#task","A new question");await h.page.click('input[value=document]');await click(h.page,"Send message");await h.page.waitForFunction(()=>[...document.querySelectorAll(".atlas-reply strong")].some(el=>el.textContent==="Fresh answer"));
+    const sent=h.calls.find(c=>c.path.endsWith("/submit"));assert.equal(sent?.body.transactionId,caseId);assert.equal(h.state.conversations[0].transcript,text);
     await h.page.reload({waitUntil:"networkidle0"});assert.ok(await h.page.$$(".atlas-reply strong").then(items=>items.length>=2));
     assert.deepEqual(h.external,[]);assert.deepEqual(h.errors,[]);
   }finally{await h.context.close();}

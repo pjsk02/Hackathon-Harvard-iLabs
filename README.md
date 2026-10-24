@@ -3,6 +3,8 @@
 The homepage is at `/`; the existing light workspace is at `/workspace`.
 See [Tasks #13 and #14](docs/TASKS_13_14.md) for readable Atlas replies,
 the persistent transaction board and their verification.
+The [current local completion handoff](docs/LOCAL_COMPLETION.md) covers single-message
+permission enforcement, diagnostics, Windows helpers and the remaining setup.
 
 Use Node.js 22.12 or newer. Development runs one Express process with Vite on
 [localhost:5000](http://localhost:5000); no Replit runtime is required.

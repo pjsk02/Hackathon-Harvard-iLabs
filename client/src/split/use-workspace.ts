@@ -49,8 +49,9 @@ export function useWorkspace() {
     setBusy(true);
     setError(null);
     let success = false;
+    let result: (WorkspaceResponse & { submissionId?: string }) | null = null;
     try {
-      await workspaceRequest(path, { ...(body as object), ...((requestedCase || data?.currentTransaction?.id) && path !== "/reset" && path !== "/reconcile" ? {transactionId:requestedCase ?? data?.currentTransaction?.id} : {}) });
+      result=await workspaceRequest(path, { ...(body as object), ...((requestedCase || data?.currentTransaction?.id) && path !== "/reset" && path !== "/reconcile" ? {transactionId:requestedCase ?? data?.currentTransaction?.id} : {}) }) as WorkspaceResponse & {submissionId?:string};
       announceBoardChange();
       success = true;
     } catch (e) { setError((e as Error).message); }
@@ -63,7 +64,7 @@ export function useWorkspace() {
       lock.current = false;
       setBusy(false);
     }
-    return success;
+    return success ? result : false;
   }
   return { data, draft, editDraft, dirty, busy, error, uncertain, reload, post };
 }

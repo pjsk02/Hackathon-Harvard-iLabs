@@ -19,7 +19,10 @@ export type Draft = { permissions: ActionId[]; task: string; report: UploadedRep
 export type Conversation = {
   id: string; task: string; report: UploadedReport | null; permissionId: string;
   createdAt: string; transcript: string; receiptIds: string[]; status: "pending" | "complete" | "unknown";
+  mode?: "enforced" | "document";
+  enforcement?: { status: "preparing" | "signing" | "checking" | "complete" | "unknown" | "unavailable"; detail: string };
 };
+export type Submission = { task: string; report: UploadedReport | null; permissions: ActionId[]; mode: "enforced" | "document"; historyIds: string[] };
 export type OperationSummary = { id: string; kind: string; status: string; detail: string };
 export type WorkspaceResponse = {
   generation: number; draft: Draft; conversations: Conversation[]; slips: Slip[]; receipts: Receipt[];

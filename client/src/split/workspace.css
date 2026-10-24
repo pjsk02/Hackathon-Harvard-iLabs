@@ -65,3 +65,13 @@
 .workspace .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
 @media(max-width:767px) { .workspace .workspace-header { padding:14px 16px; } .workspace main { margin:18px auto; } .workspace .workspace-panel { padding:20px 16px; } .workspace h1 { font-size:25px; } .workspace .step-progress button { font-size:12px; } }
 @media(prefers-reduced-motion:reduce) { .workspace *, .workspace *::before { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
+
+.workspace .permission-summary { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:12px 0; }
+.workspace .request-mode { display:flex; gap:14px; flex-wrap:wrap; padding:12px 0; margin:0; }
+.workspace .request-mode label { display:flex; gap:7px; align-items:center; font-size:14px; min-height:36px; }
+.workspace .request-mode input { accent-color:var(--brand-navy); }
+.workspace .quick-prompts button { border-radius:999px; background:#f2edf9; color:#554373; border:1px solid #c4b1dc; font-weight:500; }
+.workspace .quick-prompts button:nth-child(2) { background:#faf3e7; color:#70542a; border-color:#d6bd8b; }
+.workspace .quick-prompts button:nth-child(3) { background:#edf5f2; color:#355f51; border-color:#adc8bd; }
+.workspace .quick-prompts button:hover:not(:disabled) { filter:brightness(.96); }
+.workspace .service-status { margin:20px 0; }

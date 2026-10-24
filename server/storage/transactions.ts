@@ -66,7 +66,7 @@ export async function caseDetail(w: Workspace,id: string): Promise<CaseDetail> {
     return result;
   }
   result.timeline=[{at:item.createdAt,title:"Transaction opened",detail:"Browser-owned workspace case."},
-    ...ops.filter(op=>item.operationIds.includes(op.id)).map(op=>({at:new Date((op as any).created_at).toISOString(),title:`${({chat:"Document chat",run:"Permissioned request",act:"Manual data request",sign:"Permission signing",draft:"Draft saved"} as Record<string,string>)[op.kind] ?? "Workspace operation"} · ${op.status}`,detail:op.detail}))];
+    ...ops.filter(op=>item.operationIds.includes(op.id)).map(op=>({at:new Date((op as any).created_at).toISOString(),title:`${({submit:op.payload?.mode==="document"?"Document chat":"Permissioned message",chat:"Document chat",run:"Permissioned request",act:"Manual data request",sign:"Permission signing",draft:"Draft saved"} as Record<string,string>)[op.kind] ?? "Workspace operation"} · ${op.status}`,detail:op.detail}))];
   for (const slip of w.document.state.slips.filter(s=>item.permissionIds.includes(s.mandate.mandateId))) {
     const url=recordUrl(slip.anchor?.explorerUrl,slip.anchor?.txHash);
     if (url) result.records.push({kind:"permission",reference:slip.mandate.mandateId,url});

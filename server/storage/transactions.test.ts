@@ -9,6 +9,7 @@ import { errorHandler } from "../http";
 import type { Workspace } from "./repository";
 import { attemptFingerprint } from "../../shared/attempt-record";
 import type { Slip, Receipt, AttemptRecord } from "../../shared/contract";
+import { serviceDiagnostics } from "../workspace-diagnostics";
 
 const ids:string[]=[];
 async function fixture(doc=freshDocument()){
@@ -138,4 +139,43 @@ test("case evidence uses its original receipt and permission rather than the cur
   receipt.attemptEvidence.record.receiptId="r_999";
   await pool.query("UPDATE envoi_workspaces SET document=$2 WHERE id=$1",[w.id,JSON.stringify(saved.document)]);
   detail=await caseDetail(await load(w.id),first);assert.deepEqual(detail.records.map(r=>r.kind),["permission"]);
+});
+
+test("single-message HTTP retries share one conversation and close document failures without repeating calls",async()=>{
+  const {w,token}=await fixture();const caseId=randomUUID();await mutateCase(w.id,caseId,{action:"create",title:"One message"});
+  let calls=0;
+  const app=express();app.use(express.json());app.use(createWorkspaceRouter(async()=>{calls++;if(calls===2)throw new Error("Offline provider lost answer");return "**Offline document answer**";},()=>true));app.use(errorHandler);
+  const server=app.listen(0,"127.0.0.1");await new Promise<void>(r=>server.once("listening",r));const base=`http://127.0.0.1:${(server.address() as any).port}`;
+  const send=(path:string,body:unknown,key=randomUUID())=>fetch(`${base}/api/workspace${path}`,{method:"POST",headers:{Cookie:`__Host-envoi=${token}`,Origin:base,"Content-Type":"application/json","Idempotency-Key":key},body:JSON.stringify(body)});
+  const body={transactionId:caseId,task:"Summarize this document",report:{fileName:"local.txt",text:"Offline document"},permissions:["read_revenue"],mode:"document",historyIds:[]};
+  const before=(await pool.query("SELECT * FROM envoi_budgets ORDER BY kind")).rows;
+  try{
+    const key=randomUUID();const first=await send("/submit",body,key);assert.equal(first.status,200);assert.equal((await first.json()).submissionId,key);
+    assert.equal((await send("/submit",body,key)).status,200);assert.equal(calls,1);
+    assert.equal((await send("/submit",{...body,task:"Different payload"},key)).status,409);
+    let saved=await load(w.id);assert.equal(saved.document.conversations.length,1);assert.equal(saved.document.conversations[0].mode,"document");assert.ok(saved.document.board!.cases.find(c=>c.id===caseId)!.conversationIds.includes(key));
+    const lost=randomUUID();assert.equal((await send("/submit",{...body,task:"A distinct message"},lost)).status,503);
+    assert.equal((await pool.query("SELECT status FROM envoi_operations WHERE id=$1",[lost])).rows[0].status,"failed");
+    assert.equal((await send("/submit",{...body,task:"A distinct message"},lost)).status,409);assert.equal(calls,2);
+    // Interrupted document-only submission is recoverable without touching chain/provider.
+    const active=await load(w.id),crash=await inWorkspace(active,()=>reserve(randomUUID(),"submit",{fixture:true},caseId));
+    await pool.query("UPDATE envoi_operations SET payload=$2,updated_at=now()-interval '2 minutes' WHERE id=$1",[crash.id,JSON.stringify({mode:"document",external:true,phase:"document-call"})]);
+    assert.equal((await send("/reconcile",{operationId:crash.id})).status,200);assert.equal(calls,2);
+    assert.equal((await send("/submit",{...body,task:"After explicit recovery"})).status,200);assert.equal(calls,3);
+    saved=await load(w.id);assert.equal(saved.document.state.slips.length,0);assert.equal(saved.document.state.receipts.length,0);
+    assert.deepEqual((await pool.query("SELECT * FROM envoi_budgets ORDER BY kind")).rows,before);
+  }finally{await new Promise<void>(r=>server.close(()=>r()));}
+});
+
+test("enforced submission refuses missing configuration before any call; diagnostics read no network unless requested",async()=>{
+  const {w,token}=await fixture();let modelCalls=0;
+  const app=express();app.use(express.json());app.use(createWorkspaceRouter(async()=>{modelCalls++;return "Must not run";},()=>false));app.use(errorHandler);
+  const server=app.listen(0,"127.0.0.1");await new Promise<void>(r=>server.once("listening",r));const base=`http://127.0.0.1:${(server.address() as any).port}`;
+  try{
+    const response=await fetch(`${base}/api/workspace/submit`,{method:"POST",headers:{Cookie:`__Host-envoi=${token}`,Origin:base,"Content-Type":"application/json","Idempotency-Key":randomUUID()},body:JSON.stringify({task:"Verify",report:null,mode:"enforced",permissions:["read_revenue"],historyIds:[]})});
+    assert.equal(response.status,503);assert.equal(modelCalls,0);assert.equal((await load(w.id)).document.state.slips.length,0);
+    let networkReads=0;const read=async()=>{networkReads++;return {ok:true,mockChain:false,issuer:null,rpc:"Configured endpoint"};};
+    const config=await serviceDiagnostics(false,read);assert.equal(config.recordingPaused,true);assert.equal(networkReads,0);assert.ok(!config.network);
+    const checked=await serviceDiagnostics(true,read);assert.equal(networkReads,1);assert.equal(checked.network?.ok,true);
+  }finally{await new Promise<void>(r=>server.close(()=>r()));}
 });

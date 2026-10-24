@@ -14,6 +14,12 @@ All six datasets are fictional server-side evaluation data, not live integration
 
 The product now uses sequential Permissions → Chat → Result screens, not simultaneous panels. Public attempt recording is restricted to BLOCKED receipts with a failed scope check. ALLOWED results and other denials retain local receipts without a new request transaction. Historical public records remain readable. Permission stamps remain a separate signing operation. Visible company names are Goldman Stanley and McBain.
 
+The current local workflow combines permission signing (when needed) and protected
+checks into one durable Send message operation in chat. Document-only chat remains
+explicit and separate from protected-data access. The Result screen only reads
+saved outcomes. See [local completion](LOCAL_COMPLETION.md) for recovery rules,
+configuration checks and the paused local verification boundary.
+
 ## Design source assessment
 
 The public 21st.dev community component directory was accessible and assessed on 2026-10-24. It offers React/Next.js components, including forms, buttons and AI chats. No 21st integration is connected. No specific component's redistribution license or accessibility guarantees were established, so no third-party component source was copied or added. Native checkboxes, details, labels, buttons and tables meet the lightweight interaction needs without another dependency or subscription.

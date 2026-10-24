@@ -14,12 +14,16 @@ import { chatWithDocument } from "../agent/chat";
 import { httpError, HttpError } from "../http";
 import { transactionsRouter } from "./transactions";
 import { boardWorkspace } from "../storage/transactions";
+import { createSubmission,validateSubmission,type SubmissionOverrides } from "../workspace-submit";
+import { serviceDiagnostics } from "../workspace-diagnostics";
 import { activeExternal, budget, checkpoint, finish, freshDocument, load, pool, reserve, spend, transaction, workspace, workspaceSession, type Operation, type Workspace } from "../storage/repository";
 
-export function createWorkspaceRouter(chat = chatWithDocument, providerConfigured = llmConfigured) {
+export function createWorkspaceRouter(chat = chatWithDocument, providerConfigured = llmConfigured, submissionOverrides:SubmissionOverrides={}) {
 const workspaceRouter = Router();
 workspaceRouter.use("/api/workspace", workspaceSession);
 workspaceRouter.use(transactionsRouter);
+// No diagnostics/RPC is run on page load. These are explicit operator actions.
+workspaceRouter.get("/api/workspace/diagnostics",async (req,res)=>res.json(await serviceDiagnostics(req.query.network==="1")));
 
 function requestKey(value: unknown): string {
   if (typeof value !== "string" || !UUID_PATTERN.test(value)) throw httpError(400, "A UUID Idempotency-Key is required.");
@@ -78,15 +82,29 @@ async function perform(key: string, kind: string, input: unknown, work: (w: Work
       await finish(w,op,pending.rowCount ? "unknown" : "complete",pending.rowCount ? "The decision is saved; public recording is unconfirmed. Check status without repeating the request." : "Completed and saved.");
     } catch (error) {
       const external = op.payload?.external === true;
-      const detail = external && kind === "chat" ? "No answer was received; the provider outcome and charge remain unknown. This message is closed and will not be repeated. You may send a new message."
+      const documentCall=kind==="chat" || (kind==="submit" && op.payload?.mode==="document");
+      const detail = external && documentCall ? "No answer was received; the provider outcome and charge remain unknown. This message is closed and will not be repeated. You may send a new message."
         : external ? "Completion is unconfirmed. Check status; this operation will not be repeated automatically."
         : error instanceof HttpError ? error.message : "The operation could not complete. No external work was started.";
-      await finish(w,op,external && kind !== "chat" ? "unknown" : "failed",detail);
+      await finish(w,op,external && !documentCall ? "unknown" : "failed",detail);
       throw error instanceof HttpError ? error : httpError(503, detail);
     }
   }));
   return response(await load(w.id));
 }
+async function documentQuota(){
+  await transaction(async c=>{
+    await c.query("SELECT pg_advisory_xact_lock(9172404)");
+    const count=(await c.query("SELECT count(*)::int AS total,count(*) FILTER(WHERE workspace_id=$1)::int AS local FROM envoi_operations WHERE (kind='chat' OR (kind='submit' AND payload->>'mode'='document')) AND created_at>now()-interval '24 hours'",[workspace().id])).rows[0];
+    if(count.local>20 || count.total>200)throw httpError(429,"Document chat has reached its daily limit (20 messages per workspace, 200 shared). Please try again tomorrow.");
+  });
+}
+const submit=createSubmission({availability,payModel:()=>transaction(c=>spend(c,"model")),chatQuota:documentQuota},{chat,...submissionOverrides});
+workspaceRouter.post("/api/workspace/submit",async(req,res)=>{
+  const input=validateSubmission(req.body);
+  const key=requestKey(req.get("Idempotency-Key"));
+  res.json({...await perform(key,"submit",input,(w,op)=>submit(w,op,input),req.body?.transactionId),submissionId:key});
+});
 workspaceRouter.post("/api/workspace/draft", async (req,res) => {
   const draft = validateDraft(req.body);
   res.json(await perform(requestKey(req.get("Idempotency-Key")),"draft",draft,async w => { w.document.draft = draft; },req.body?.transactionId));
@@ -169,11 +187,7 @@ workspaceRouter.post("/api/workspace/chat", async (req,res) => {
     if (w.document.conversations.length >= 100) throw httpError(429,"This workspace has reached its 100-message limit.");
     // User-initiated document chat has bounded daily usage, independent of chain approval.
     // Pending/unknown attempts count too; a restart or reset cannot refund calls.
-    await transaction(async c => {
-      await c.query("SELECT pg_advisory_xact_lock(9172404)");
-      const count = (await c.query("SELECT count(*)::int AS total,count(*) FILTER(WHERE workspace_id=$1)::int AS local FROM envoi_operations WHERE kind='chat' AND created_at > now()-interval '24 hours'",[w.id])).rows[0];
-      if (count.local > 20 || count.total > 200) throw httpError(429,"Document chat has reached its daily limit (20 messages per workspace, 200 shared). Please try again tomorrow.");
-    });
+    await documentQuota();
     const selected=w.document.board?.cases.find(item=>item.id===w.document.board?.activeId);
     const history = w.document.conversations.filter(item=>!selected || selected.conversationIds.includes(item.id));
     const conversation = {id:op.id,task:input.task!,report:input.upload ?? null,permissionId:"",createdAt:new Date().toISOString(),transcript:"",receiptIds:[] as string[],status:"pending" as "pending"|"complete"|"unknown"};
@@ -225,12 +239,13 @@ workspaceRouter.post("/api/workspace/reconcile", async (req,res) => {
   if (!aged.rowCount) throw httpError(409,"The operation may still be running. Check again after one minute; no request was repeated.");
   op.owner = newOwner;
   const records = (await pool.query("SELECT * FROM envoi_broadcasts WHERE operation_id=$1",[id])).rows;
-  if (op.kind === "chat" || op.kind === "draft") {
+  const documentCall=op.kind==="chat" || (op.kind==="submit" && op.payload?.mode==="document");
+  if (documentCall || op.kind === "draft") {
     const conversation = w.document.conversations.find(c=>c.id===op.id);
     const complete = op.payload?.phase === "ready";
     if (conversation && !complete) conversation.status="unknown";
     await finish(w,op,complete ? "complete" : "failed",complete ? "Saved outcome recovered; nothing was repeated." :
-      op.kind === "chat" ? "No saved answer can be recovered; provider completion and charges remain unknown. This message is closed without retry. You may send a new message." :
+      documentCall ? "No saved answer can be recovered; provider completion and charges remain unknown. This message is closed without retry. You may send a new message." :
         "The interrupted save is closed. Review the restored draft and save again if needed.");
     res.json(await response(await load(w.id))); return;
   }
@@ -240,12 +255,18 @@ workspaceRouter.post("/api/workspace/reconcile", async (req,res) => {
       const result = await chain.reconcileFingerprint(record.fingerprint,record.tx_hash);
       if (result.status === "pending") { unresolved = true; continue; }
       if (op.generation !== w.generation) continue;
-      if (op.kind === "sign" && op.payload?.slip && result.status === "recorded") {
+      if ((op.kind === "sign" || op.kind==="submit") && op.payload?.slip && result.status === "recorded" && op.payload.slip.digest===record.fingerprint) {
         const slip = op.payload.slip as Slip;
         if (slip.digest !== record.fingerprint) throw httpError(409,"The saved permission does not match this public record.");
         slip.anchor = result.anchor;
         if (!state.getSlip(slip.mandate.mandateId)) state.addSlip(slip);
-        op.payload.phase = "ready";
+        if(op.kind==="sign")op.payload.phase = "ready";
+        else {
+          const conversation=w.document.conversations.find(c=>c.id===op.id);
+          if(conversation)conversation.permissionId=slip.mandate.mandateId;
+          const selected=w.document.board?.cases.find(item=>item.operationIds.includes(op.id));
+          if(selected && !selected.permissionIds.includes(slip.mandate.mandateId))selected.permissionIds.push(slip.mandate.mandateId);
+        }
       }
       for (const receipt of state.listReceipts()) {
         const evidence = receipt.attemptEvidence;

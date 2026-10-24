@@ -100,7 +100,7 @@ export async function reserve(id: string, kind: string, input: unknown, transact
       return { ...prior, reused: true };
     }
     if (locked.active_operation) throw httpError(409, "An operation has an unconfirmed outcome. Check its status before making another change.");
-    if (["sign","run","act","chat"].includes(kind) && (await c.query("SELECT 1 FROM envoi_operations WHERE workspace_id=$1 AND status IN ('pending','unknown') LIMIT 1", [w.id])).rowCount) {
+    if (["sign","run","act","chat","submit"].includes(kind) && (await c.query("SELECT 1 FROM envoi_operations WHERE workspace_id=$1 AND status IN ('pending','unknown') LIMIT 1", [w.id])).rowCount) {
       throw httpError(409, "A previous operation remains unconfirmed, including after reset. Check its status; it will not be repeated.");
     }
     await c.query("SELECT pg_advisory_xact_lock(9172402)");
@@ -113,7 +113,7 @@ export async function reserve(id: string, kind: string, input: unknown, transact
       if(imported) imported.operationIds=(await c.query("SELECT id FROM envoi_operations WHERE workspace_id=$1 AND generation=$2",[w.id,w.generation])).rows.map(row=>row.id);
     }
     selected.operationIds.push(id);
-    if (kind === "chat" || kind === "run") selected.conversationIds.push(id);
+    if (kind === "chat" || kind === "run" || kind === "submit") selected.conversationIds.push(id);
     if (kind === "sign") selected.permissionIds.push(`permission-${id}`);
     const permissionId=(input as { permissionId?: unknown } | null)?.permissionId;
     if (typeof permissionId === "string" && !selected.permissionIds.includes(permissionId)) selected.permissionIds.push(permissionId);
