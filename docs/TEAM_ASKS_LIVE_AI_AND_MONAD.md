@@ -1,7 +1,9 @@
 # Asks for P1 and P2: live AI, uploads, real Monad
 
 From Rachel (P3). The original screen was pushed; the latest correctness fixes
-are verified on a task fork and are not a new combined main/deployment release.
+are verified on the `p3/verified-handoff` branch and are not a new combined
+main/deployment release. Aman owns combined integration from this point; see
+[the P3 handoff](P3_INTEGRATION_HANDOFF.md).
 These are the pieces only your files can finish.
 
 ## What the screen does now

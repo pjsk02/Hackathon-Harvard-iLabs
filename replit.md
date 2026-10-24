@@ -30,7 +30,7 @@ Spec: `ENVOI_BUILD_SPEC.md`. Project rules and file ownership: `.agents/skills/e
 - Demo order: **1 Grant → 2 Clean example → 3 Prompt-injected example → 4 Monad evidence**. Report reveal is R; Force and Dispute are optional.
 - Nothing in the demo may be a mock. The browser mock path has been removed; do not re-enable it or `MOCK_CHAIN`.
 - Omit the elapsed-time detail. Correct ordering on the backend is still required.
-- Aman owns P1 and pushes his own chain changes. Do not implement or overwrite his files while waiting.
+- Aman owns P1 and, at Rachel's request, combined integration after the verified P3 handoff. Do not implement or overwrite his files while waiting. See [P3 integration handoff](docs/P3_INTEGRATION_HANDOFF.md); standalone P3 checks are not full live-demo acceptance.
 - P3 acceptance status: [docs/P3_ACCEPTANCE.md](docs/P3_ACCEPTANCE.md). Do not equate a finished screen or offline tests with a passing live demo.
 - Reset-generation integration for P1/P2: [docs/TEAM_ASKS_LIVE_AI_AND_MONAD.md](docs/TEAM_ASKS_LIVE_AI_AND_MONAD.md).
 - P1 integration/review (not a live pass): [docs/P1_INTEGRATION_REVIEW.md](docs/P1_INTEGRATION_REVIEW.md).
