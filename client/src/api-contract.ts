@@ -27,10 +27,12 @@ export function isReceipt(value: unknown): value is Receipt {
     ["action", "dispute"].includes(value.kind) && ["agent", "forced"].includes(value.source) &&
     ["ALLOWED", "BLOCKED", "REJECTED"].includes(value.decision) && number(value.actionTime) &&
     (value.explorerUrl === null || text(value.explorerUrl)) && "data" in value &&
+    (value.decision === "ALLOWED" ? value.kind === "action" : value.data === null) &&
     Array.isArray(value.checks) && value.checks.length === 5 &&
     ["signed", "agent", "valid", "stamped", "scope"].every((id, index) => {
       const c = value.checks[index];
-      return record(c) && c.id === id && typeof c.pass === "boolean" && text(c.label) && text(c.detail);
+      return record(c) && c.id === id && typeof c.pass === "boolean" && text(c.label) && text(c.detail) &&
+        (value.decision !== "ALLOWED" || c.pass);
     });
 }
 
@@ -52,7 +54,8 @@ export const isHealth = (value: unknown): value is HealthResponse =>
 
 export const isRun = (value: unknown): value is AgentRunResponse =>
   record(value) && text(value.transcript) && strings(value.proposedCalls) &&
-  Array.isArray(value.receipts) && value.receipts.every(isReceipt);
+  Array.isArray(value.receipts) && value.receipts.length <= 3 &&
+  value.receipts.every((receipt: unknown) => isReceipt(receipt) && receipt.source === "agent" && receipt.kind === "action");
 
 export const isSelftest = (value: unknown): value is SelftestResponse =>
   record(value) && typeof value.pass === "boolean" && Array.isArray(value.steps) &&

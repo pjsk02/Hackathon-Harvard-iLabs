@@ -2,11 +2,13 @@
 import type {
   ActRequest, AgentRunResponse, HealthResponse, Receipt, ReportId, SelftestResponse, Slip, StateResponse, UploadedReport,
 } from "@shared/contract";
-import { createRequester } from "./request";
+import { ApiError, createRequester } from "./request";
 import { hasRecordedPermission, isHealth, isReceipt, isRun, isSelftest, isSlip, isState } from "./api-contract";
+import { demoPresentation } from "./demo-presentation";
 
 const transport = createRequester({
   storage: typeof window !== "undefined" ? (() => { try { return window.sessionStorage; } catch { return undefined; } })() : undefined,
+  getSessionId: () => demoPresentation.getSnapshot().sessionId,
 });
 const call = transport.request;
 
@@ -15,8 +17,17 @@ export const api = {
   pendingAction: transport.pendingAction,
   subscribeToPending: transport.subscribeToPending,
   state: async () => {
-    const result = await call<StateResponse>("/api/state", { validate: isState });
-    if (result.slips.some((s) => s.label === "Original" && hasRecordedPermission(s))) transport.confirmGrant();
+    const result = await call<StateResponse>("/api/state", {
+      validate: isState,
+      onSuccess: (state, response) => {
+        const sessionId = response.headers.get("X-Envoi-Session");
+        if (!sessionId || !/^[a-z0-9-]{16,80}$/i.test(sessionId)) {
+          throw new ApiError("The current demo session could not be identified; check status before submitting.");
+        }
+        demoPresentation.acceptState(sessionId, state, response.headers.get("X-Envoi-Operation") === "busy");
+        if (state.slips.some((s) => s.label === "Original" && hasRecordedPermission(s))) transport.confirmGrant(sessionId);
+      },
+    });
     return result;
   },
   sign: (scenarioId: string) => call<Slip>("/api/slips", {
@@ -30,10 +41,22 @@ export const api = {
     if (/^\s*\((stub|mock)\)/i.test(result.transcript)) {
       throw new Error("Atlas returned a scripted response; the live AI must be connected before this example can run.");
     }
+    demoPresentation.completed(reportId, result.receipts);
     return result;
   },
-  act: (req: ActRequest) => call<Receipt>("/api/act", { method: "POST", body: req, label: "Data request", validate: isReceipt }),
-  dispute: () => call<Receipt>("/api/dispute", { method: "POST", label: "Dispute", validate: isReceipt }),
+  act: async (req: ActRequest) => {
+    const receipt = await call<Receipt>("/api/act", {
+      method: "POST", body: req, label: "Data request",
+      validate: (value): value is Receipt => isReceipt(value) && value.source === "forced" && value.kind === "action",
+    });
+    demoPresentation.showReceipts([receipt]);
+    return receipt;
+  },
+  dispute: async () => {
+    const receipt = await call<Receipt>("/api/dispute", { method: "POST", label: "Dispute", validate: isReceipt });
+    demoPresentation.showReceipts([receipt]);
+    return receipt;
+  },
   reset: () => call<{ ok: true }>("/api/reset", {
     method: "POST", label: "Reset",
     validate: (value): value is { ok: true } => !!value && typeof value === "object" && "ok" in value && value.ok === true,

@@ -22,7 +22,8 @@ export default function Preflight() {
     setChecking(true);
     setHealthError(null);
     try {
-      setHealth(await api.health());
+      const [reported] = await Promise.all([api.health(), api.state()]);
+      setHealth(reported);
     } catch (error) {
       setHealth(null);
       setHealthError(plainRequestError(error));
@@ -55,7 +56,7 @@ export default function Preflight() {
   }
 
   async function runTest() {
-    if (running || checking || api.pendingAction()) return;
+    if (running || checking || api.pendingAction() || !health?.ok || health.mockChain || !health.issuer) return;
     setRunning(true);
     setTest(null);
     setTestError(null);
@@ -64,6 +65,7 @@ export default function Preflight() {
     } catch (error) {
       setTestError(plainRequestError(error));
     } finally {
+      try { await api.state(); } catch (error) { setRecoveryError(plainRequestError(error)); }
       setRunning(false);
     }
   }
@@ -99,7 +101,7 @@ export default function Preflight() {
         <h2 className="preflight-heading" id="preflight-selftest">Self-test</h2>
         <p className="preflight-note" id="selftest-warning">Runs the demo scenes on the server. This may create real Monad records and change the demo session. It only runs when you choose it.</p>
         <button type="button" className="ghost" onClick={() => { void runTest(); }}
-          aria-describedby="selftest-warning" disabled={running || checking || !!pending}>
+          aria-describedby="selftest-warning" disabled={running || checking || !!pending || !health?.ok || health.mockChain || !health.issuer}>
           {running ? "Running self-test…" : "Run self-test"}
         </button>
         <div className="preflight-status" aria-live="polite">

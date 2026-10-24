@@ -127,3 +127,60 @@ test("shape checks reject malformed health, model and state replies", () => {
   assert.equal(isRun({ transcript: "No data requested.", proposedCalls: [], receipts: [] }), true);
   assert.equal(isState({ scenario: {}, slips: [], receipts: [], counter: 0 }), false);
 });
+
+test("only the exact known pre-tool AI failure unlocks Force", async () => {
+  const transport = createRequester({ fetcher: async (url) => url === "/api/agent/run"
+    ? json({ error: "The AI service did not answer. Use Force the request." }, 502)
+    : json({ ok: true }) });
+  await assert.rejects(transport.request("/api/agent/run", { method: "POST" }),
+    (error: unknown) => error instanceof ApiError && !error.outcomeUnknown);
+  assert.equal(transport.pendingAction(), null);
+  await transport.request("/api/act", { method: "POST" });
+  for (const [path, message] of [
+    ["/api/agent/run", "The AI service failed after tool execution."],
+    ["/api/agent/run", "A tool is not built yet."],
+    ["/api/act", "The AI service did not answer. Use Force the request."],
+  ]) {
+    const uncertain = createRequester({ fetcher: async () => json({ error: message }, 502) });
+    await assert.rejects(uncertain.request(path, { method: "POST" }), unknown);
+    await assert.rejects(uncertain.request("/api/act", { method: "POST" }), unknown);
+  }
+});
+
+test("ambiguous conflicts stay guarded; explicit shared-demo refusals can be checked without replay", async () => {
+  const uncertain = createRequester({ fetcher: async () => json({ error: "The session changed after sending the record." }, 409) });
+  await assert.rejects(uncertain.request("/api/slips", { method: "POST" }), unknown);
+  for (const message of [
+    "Another demo action is still being processed; check status before trying again.",
+    "The shared demo changed; check status before starting this action.",
+  ]) {
+    const refused = createRequester({ fetcher: async () => json({ error: message }, 409) });
+    await assert.rejects(refused.request("/api/act", { method: "POST" }),
+      (error: unknown) => error instanceof ApiError && !error.outcomeUnknown);
+    assert.equal(refused.pendingAction(), null);
+  }
+});
+
+test("permission recovery is tied to the session that submitted it, not a later permission", async () => {
+  let sent: Headers | undefined;
+  const transport = createRequester({
+    getSessionId: () => "original-session",
+    fetcher: async (_url, options) => { sent = new Headers(options?.headers); throw new Error("lost"); },
+  });
+  await assert.rejects(transport.request("/api/slips", { method: "POST" }), unknown);
+  assert.equal(sent?.get("X-Envoi-Session"), "original-session");
+  transport.confirmGrant("later-session");
+  assert.equal(transport.pendingAction()?.sessionId, "original-session");
+  transport.confirmGrant("original-session");
+  assert.equal(transport.pendingAction(), null);
+});
+
+test("a late response after the deadline cannot change the authoritative presentation", async () => {
+  let finish!: (response: Response) => void;
+  let adopted = false;
+  const transport = createRequester({ readTimeoutMs: 5, fetcher: () => new Promise((resolve) => { finish = resolve; }) });
+  await assert.rejects(transport.request("/api/state", { onSuccess: () => { adopted = true; } }), /in time/);
+  finish(json({ ok: true }));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(adopted, false);
+});
