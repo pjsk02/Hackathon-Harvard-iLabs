@@ -1,26 +1,45 @@
-// Mock ledger (owner: P1). Same interface as ledger.ts, no network. Used when MOCK_CHAIN=1.
-import { issuerAddress } from "./slip";
+// Explicit offline mode only. It still uses genuine EIP-712 signatures.
+import { id, isHexString, randomBytes, hexlify } from "ethers";
 import type { Anchor } from "../../shared/contract";
-import type { LookupResult } from "./ledger";
+import { CHAIN_ID } from "../../shared/contract";
+import type { ChainReference, LookupResult } from "./evidence";
+import { issuerAddress } from "./slip";
 
-const store = new Map<string, { data: string; ts: number; block: number }>();
-let block = 18_442_000;
-
-export async function anchor(digest: string): Promise<Anchor> {
-  const txHash = "0x" + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
-  const ts = Math.floor(Date.now() / 1000);
-  block += 1;
-  store.set(txHash, { data: digest, ts, block });
-  return { txHash, blockNumber: block, blockTimestamp: ts, explorerUrl: "#mock" };
+export function createMockLedger(clock = () => Date.now()) {
+  const epoch = clock();
+  const store = new Map<string, LookupResult>();
+  let block = 18_442_000;
+  const blockHash = (height: number) => id(`envoi-mock-block-${height}`);
+  const current = (): ChainReference => {
+    block = Math.max(block, 18_442_000 + Math.floor((clock() - epoch) / 300));
+    return { chainId: CHAIN_ID, blockNumber: block, blockHash: blockHash(block), blockTimestamp: Math.floor(clock() / 1000) };
+  };
+  return {
+    async anchor(digest: string): Promise<Anchor> {
+      if (!isHexString(digest, 32)) throw new Error("A stamp requires a 32-byte permission fingerprint.");
+      const from = issuerAddress(); // no hardcoded or fabricated issuer
+      current();
+      block++;
+      const ref = current();
+      const txHash = hexlify(randomBytes(32));
+      store.set(txHash, {
+        ...ref, from, to: from, data: digest, value: "0x0",
+        status: 1, transactionIndex: 0, finalized: true,
+      });
+      return { txHash, blockNumber: ref.blockNumber, blockTimestamp: ref.blockTimestamp, explorerUrl: "#mock" };
+    },
+    async lookup(txHash: string): Promise<LookupResult | null> {
+      const result = store.get(txHash);
+      return result ? { ...result } : null;
+    },
+    async latestReference(): Promise<ChainReference> { return current(); },
+    async latestTimestamp(): Promise<number> { return current().blockTimestamp; },
+    advanceBlocks(count = 1) {
+      if (!Number.isSafeInteger(count) || count < 0) throw new Error("Invalid mock block count.");
+      block += count;
+    },
+  };
 }
 
-export async function lookup(txHash: string): Promise<LookupResult | null> {
-  const r = store.get(txHash);
-  if (!r) return null;
-  // `from` must equal the issuer, or "stamped" always fails on the mock
-  return { from: issuerAddress(), data: r.data, blockNumber: r.block, blockTimestamp: r.ts, status: 1 };
-}
-
-export async function latestTimestamp(): Promise<number> {
-  return Math.floor(Date.now() / 1000);
-}
+const ledger = createMockLedger();
+export const { anchor, lookup, latestReference, latestTimestamp } = ledger;

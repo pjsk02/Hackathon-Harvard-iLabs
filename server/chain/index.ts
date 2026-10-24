@@ -14,6 +14,7 @@ const ledger = () => (isMockChain() ? mock : real);
 export const anchor = (digest: string) => ledger().anchor(digest);
 export const lookup = (txHash: string) => ledger().lookup(txHash);
 export const latestTimestamp = () => ledger().latestTimestamp();
+export const latestReference = () => ledger().latestReference();
 
 export function issuerAddressOrNull(): string | null {
   try {
@@ -24,3 +25,5 @@ export function issuerAddressOrNull(): string | null {
 }
 
 export type { LookupResult } from "./ledger";
+export type { ChainReference } from "./evidence";
+export { stampMatchesRequest } from "./evidence";

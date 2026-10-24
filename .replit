@@ -9,7 +9,7 @@ expertMode = true
 [userenv]
 
 [userenv.development]
-MOCK_CHAIN = "1"
+MOCK_CHAIN = "0"
 
 [workflows]
 runButton = "Project"
