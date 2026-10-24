@@ -5,8 +5,8 @@ import { consulting } from "@shared/scenarios";
 
 const S = consulting;
 
-export const FIRM = S.firm.name; // Baine
-export const CLIENT = S.client.name; // JT Morgan
+export const FIRM = S.firm.name; // McBain
+export const CLIENT = S.client.name; // Goldman Stanley
 export const AGENT = S.agent.name; // Atlas
 
 export const COPY = {
@@ -45,7 +45,11 @@ export const COPY = {
   addedAfter: "Added after the request",
   previewLabel: "HIDDEN TEXT · included in extracted text",
   send: "Send",
-  upload: { title: "Upload a report", sample: "Download sample Word report ↓" },
+  upload: {
+    title: "Upload a report",
+    sample: "Download sample Word report ↓",
+    sampleHref: "/samples/Goldman-Stanley-Q3-Data-Request.docx",
+  },
   forced: "forced",
 };
 

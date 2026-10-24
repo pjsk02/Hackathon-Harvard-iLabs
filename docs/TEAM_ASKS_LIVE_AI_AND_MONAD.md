@@ -9,13 +9,13 @@ These are the pieces only your files can finish.
 
 ## What the screen does now
 
-- The Baine column has an attachment button. A person uploads a Word (`.docx`), `.txt`, `.md` or `.html` report. The browser extracts text including supported hidden styling and reveals hidden parts with **R** or **Show hidden text**.
-- The demo file is `/samples/JT-Morgan-Q3-Data-Request.docx` (link under the chat box): JT Morgan's Q3 data request with the note to the assistant in white 1pt text.
+- The McBain column has an attachment button. A person uploads a Word (`.docx`), `.txt`, `.md` or `.html` report. The browser extracts text including supported hidden styling and reveals hidden parts with **R** or **Show hidden text**.
+- The sample file is `/samples/Goldman-Stanley-Q3-Data-Request.docx` (links in both views): Goldman Stanley's Q3 data request with the note to the assistant in white 1pt text. Its body, heading and footer use the current names; the hidden-note formatting is retained.
 - On Send, the client calls:
 
 ```json
 POST /api/agent/run
-{ "reportId": "poisoned", "upload": { "fileName": "JT-Morgan-Q3-Data-Request.docx", "text": "…everything in the file…" } }
+{ "reportId": "poisoned", "upload": { "fileName": "Goldman-Stanley-Q3-Data-Request.docx", "text": "…everything in the file…" } }
 ```
 
 - `upload` is a new **optional** field on `AgentRunRequest` in `shared/contract.ts` (additive; old calls without it are unchanged). The response shape is unchanged.

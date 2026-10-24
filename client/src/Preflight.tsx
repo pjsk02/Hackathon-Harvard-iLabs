@@ -49,8 +49,8 @@ export default function Preflight() {
       setHealth(null);
       setHealthError(plainRequestError(healthResult.reason));
     }
-    if (stateResult.status === "rejected") setRecoveryError("The current demo record could not be read. Check status again before submitting more work.");
-    else setRecoveryMessage("Current demo record read. This does not verify every submitted action.");
+    if (stateResult.status === "rejected") setRecoveryError("The current session record could not be read. Check status again before submitting more work.");
+    else setRecoveryMessage("Current session record read. This does not verify every submitted action.");
     active.current = false;
     setChecking(false);
   }
@@ -79,7 +79,7 @@ export default function Preflight() {
   return (
     <main className="preflight">
       <h1>Envoi pre-flight</h1>
-      <p className="preflight-intro">Check the connection before the demo. Configuration is not proof that the live flow works.</p>
+      <p className="preflight-intro">Check the connection before granting access. Configuration is not proof that the live workflow works.</p>
       <RequestFeedback connection={connection} pending={pending} error={healthError ?? recoveryError}
         onRecheck={() => { void recheck(); }} rechecking={checking} busy={running} />
       {recoveryMessage && <p className="preflight-note" role="status">{recoveryMessage}</p>}
@@ -90,7 +90,7 @@ export default function Preflight() {
         {health && (
           <ul className="plain preflight-config">
             <li className={health.ok ? "good" : "bad"}>Server check: {health.ok ? "responded" : "failed"}.</li>
-            <li className={health.mockChain ? "bad" : "muted"}>Chain mode: {health.mockChain ? "practice mode; live demo blocked." : "real-chain mode configured; connection unknown."}</li>
+            <li className={health.mockChain ? "bad" : "muted"}>Chain mode: {health.mockChain ? "practice mode; live requests blocked." : "real-chain mode configured; connection unknown."}</li>
             <li className={health.issuer ? "muted" : "bad"}>Signer: {health.issuer ? `${health.issuer.slice(0, 6)}…${health.issuer.slice(-4)} configured; signing unverified.` : "not configured; signing unavailable."}</li>
             <li>Network setting: {health.rpc || "unknown"}. Monad readback unverified.</li>
             <li>AI connection: unknown; not checked by server health.</li>
@@ -99,7 +99,7 @@ export default function Preflight() {
       </section>
       <section className="card" aria-labelledby="preflight-selftest" aria-busy={running}>
         <h2 className="preflight-heading" id="preflight-selftest">Self-test</h2>
-        <p className="preflight-note" id="selftest-warning">Runs the demo scenes on the server. This may create real Monad records and change the demo session. It only runs when you choose it.</p>
+        <p className="preflight-note" id="selftest-warning">Runs the workflow checks on the server. This may create real Monad records and change the shared session. It only runs when you choose it.</p>
         <button type="button" className="ghost" onClick={() => { void runTest(); }}
           aria-describedby="selftest-warning" disabled={running || checking || !!pending || !health?.ok || health.mockChain || !health.issuer}>
           {running ? "Running self-test…" : "Run self-test"}
@@ -125,7 +125,7 @@ export default function Preflight() {
           {!test.steps.length && <p className="preflight-note">No scene details were returned.</p>}
         </div>}
       </section>
-      <p><a href="/">Back to the demo screen</a></p>
+      <p><a href="/">Back to the workspace</a></p>
     </main>
   );
 }

@@ -82,7 +82,7 @@ jargon in rendered text. Failed checks must retain their actual cause.
 ## 4. Report upload
 
 1. Use the sample link below the chat box to download
-   `JT-Morgan-Q3-Data-Request.docx`, then upload that file during the demo.
+   `Goldman-Stanley-Q3-Data-Request.docx`, then upload that file during the workflow.
 2. The sample is a demo variant of the supplied report: its assistant note uses
    white 1pt text. The original supplied Word file had a visible highlighted note.
 3. The preview initially hides supported hidden formatting. **R** or **Show

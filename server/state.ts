@@ -31,7 +31,7 @@ export function isCurrentGeneration(expected: number): boolean {
 
 export function assertCurrentGeneration(expected: number): void {
   if (!isCurrentGeneration(expected)) {
-    throw httpError(409, "The demo was reset; start this action again.");
+    throw httpError(409, "The session was reset; start this action again.");
   }
 }
 

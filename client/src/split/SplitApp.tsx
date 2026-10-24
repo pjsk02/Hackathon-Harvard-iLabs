@@ -98,14 +98,14 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
       acceptState(s, true);
     } else setError((stateResult.reason as Error).message);
     if (healthResult.status === "rejected" || stateResult.status === "rejected") {
-      setConnection({ state: "unavailable", message: "Could not read the server and demo status; check again before submitting." });
+      setConnection({ state: "unavailable", message: "Could not read the server and session status; check again before submitting." });
       if (healthResult.status === "rejected") setError((previous) => previous ?? (healthResult.reason as Error).message);
     } else if (!healthResult.value.ok || healthResult.value.mockChain) {
       setConnection({ state: "unavailable", message: healthResult.value.mockChain
-        ? "Practice-chain mode is enabled; the live demo is blocked."
+        ? "Practice-chain mode is enabled; live requests are blocked."
         : "The server reported a failed health check." });
     } else if (!healthResult.value.issuer) {
-      setConnection({ state: "unavailable", message: "Signing is not configured; the live demo cannot start yet." });
+      setConnection({ state: "unavailable", message: "Signing is not configured; live requests cannot start yet." });
     } else {
       setConnection({ state: "unverified", message: "Server responded; signing and the Monad connection are not yet verified." });
     }
@@ -339,7 +339,7 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
           <img src="/envoi-logo.png" alt="" />
           <span>Envoi</span>
         </div>
-        <ol className="stage-steps" aria-label="Demo order">
+        <ol className="stage-steps" aria-label="Request workflow">
           {COPY.steps.map((s, i) => {
             const n = i + 1;
             return (
@@ -388,7 +388,7 @@ export default function SplitApp({ onSwitchView }: { onSwitchView: () => void })
         />
       </main>
 
-      <footer className="stage-keys" aria-label="Demo controls; keyboard shortcuts are optional">
+      <footer className="stage-keys" aria-label="Workflow controls; keyboard shortcuts are optional">
         {keys.map((k) => (
           <button
             key={k.key}

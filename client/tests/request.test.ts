@@ -153,11 +153,25 @@ test("ambiguous conflicts stay guarded; explicit shared-demo refusals can be che
   for (const message of [
     "Another demo action is still being processed; check status before trying again.",
     "The shared demo changed; check status before starting this action.",
+    "Another request is still being processed; check status before trying again.",
+    "The shared session changed; check status before starting this action.",
   ]) {
     const refused = createRequester({ fetcher: async () => json({ error: message }, 409) });
     await assert.rejects(refused.request("/api/act", { method: "POST" }),
       (error: unknown) => error instanceof ApiError && !error.outcomeUnknown);
     assert.equal(refused.pendingAction(), null);
+  }
+});
+
+test("current and older rate-limit messages remain explicit refusals with product wording", async () => {
+  for (const error of [
+    "Too many requests; wait one minute before trying again.",
+    "Too many demo actions; wait one minute before trying again.",
+  ]) {
+    const transport = createRequester({ fetcher: async () => json({ error }, 429) });
+    await assert.rejects(transport.request("/api/agent/run", { method: "POST" }),
+      (cause: unknown) => cause instanceof ApiError && !cause.outcomeUnknown && !/\bdemo\b/i.test(cause.message));
+    assert.equal(transport.pendingAction(), null);
   }
 });
 

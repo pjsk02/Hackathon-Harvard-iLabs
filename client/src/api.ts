@@ -22,7 +22,7 @@ export const api = {
       onSuccess: (state, response) => {
         const sessionId = response.headers.get("X-Envoi-Session");
         if (!sessionId || !/^[a-z0-9-]{16,80}$/i.test(sessionId)) {
-          throw new ApiError("The current demo session could not be identified; check status before submitting.");
+          throw new ApiError("The current session could not be identified; check status before submitting.");
         }
         demoPresentation.acceptState(sessionId, state, response.headers.get("X-Envoi-Operation") === "busy");
         if (state.slips.some((s) => s.label === "Original" && hasRecordedPermission(s))) transport.confirmGrant(sessionId);

@@ -4,6 +4,28 @@ At Rachel's request, Aman owns combined integration from this handoff onward.
 The independent P3 fixes are complete and checked. **This is not a claim that
 the full live demo or judge-link closeout is complete.**
 
+## Product wording follow-up
+
+- Both views use **Product guide** and product/session language, including
+  accessible labels, setup messages and recovery errors.
+- The fictional client is **Goldman Stanley** and the consultant is **McBain**.
+  Both built-in reports, the agent role and the downloadable Word report use
+  these names.
+- The current sample URL is
+  `/samples/Goldman-Stanley-Q3-Data-Request.docx`. Its text and footer are
+  rebranded; its original report layout and hidden white 1pt note are preserved.
+  The uploaded source document under `attached_assets/` is not changed.
+- P1/P2 source and the frozen shared contract are not changed. Permission IDs,
+  action names, session headers and unknown-outcome protections are unchanged.
+  Client error handling accepts both old and current refusal messages, so older
+  owner branches remain compatible.
+
+Follow-up verification: type checking, **83 offline checks**, **19 browser
+checks**, and the production build passed. The stage desktop and classic mobile
+layouts were visually checked. The workspace Word download returned HTTP 200
+and matched the reviewed asset byte-for-byte; hidden-note parsing and reveal
+still pass. This does not claim a live-model run, chain send or publication.
+
 ## Git reference
 
 - Repository: https://github.com/pjsk02/Hackathon-Harvard-iLabs
@@ -19,7 +41,7 @@ task checkout. It did not alter the tested application tree. P1/P2 code and
 `shared/contract.ts` match the fetched main; their implementations were not
 independently edited.
 
-After integrating the handoff, P3 reran type checking, all **78 offline checks**,
+At the original handoff baseline, P3 reran type checking, all **78 offline checks**,
 all **17 browser checks**, and the production build successfully. The integrated
 application/configuration/dependency tree matches the verified handoff exactly.
 The running initial UI was also checked. No live model call or Monad send was
@@ -55,16 +77,19 @@ the main app's normal task workflow; GitHub source is not a deployed app.
   one-operation shared-demo lock are in place. Disconnection does not unlock an
   active handler; overlapping actions/Reset and stale-tab writes are refused.
 
-Verification: type check, production build, **78 offline checks** and **17
-browser checks** passed. The sample download matched the supplied file.
+Original handoff verification: type check, production build, **78 offline
+checks** and **17 browser checks** passed. The sample download matched the
+checked-in asset.
 The subsequent history sync left application/configuration/dependency files
 byte-identical to that tested tree. Browser success fixtures are tests only,
 not live-model or Monad acceptance.
 
 ## Integration work still required
 
-1. Obtain Jay's current real agent/upload, five-check, original-request-context
-   and executable self-test code. The advertised P2 branch is still stale.
+1. Obtain and integrate Jay's current real agent/upload, five-check,
+   original-request-context and executable self-test code. `P2-Je` has newer
+   owner work; Aman should review that branch rather than relying on the older
+   stale-branch assessment. This P3 wording change does not import P2 code.
 2. Agree the attempt/context interface with all owners. The
    [attempt-recording handoff](ATTEMPT_RECORDING_HANDOFF.md) is a proposal, not
    an implemented recorder or an approved shared-contract change.
