@@ -5,15 +5,19 @@
   "description": "Envoi: signed agent permissions, request controls and public records on Monad.",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch --clear-screen=false --ignore 'client/**' server/index.ts",
+    "dev": "node --env-file-if-exists=.env --import tsx scripts/run.mjs development",
     "build": "vite build",
-    "start": "NODE_ENV=production tsx server/index.ts",
+    "start": "node --env-file-if-exists=.env --import tsx scripts/run.mjs production",
     "typecheck": "tsc --noEmit",
     "test:state": "node --import tsx --test server/state.test.ts server/http.test.ts",
     "test:chain": "node --import tsx --test server/chain/chain.test.ts server/chain/permission-service.test.ts server/chain/rpc-safety.test.ts",
     "test:client": "node --import tsx --test client/tests/request.test.ts client/tests/presentation.test.ts client/tests/product-copy.test.ts",
     "test:ui": "node --import tsx --test --test-concurrency=1 client/tests/ui.test.ts",
-    "test": "npm run test:state && npm run test:chain && npm run test:client"
+    "test:p2": "node scripts/test-p2.mjs",
+    "test": "npm run test:state && npm run test:chain && npm run test:client && npm run test:p2"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   },
   "repository": {
     "type": "git",
