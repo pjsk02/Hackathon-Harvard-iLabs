@@ -5,8 +5,8 @@ import * as state from "./state";
 
 export const SESSION_HEADER = "X-Envoi-Session";
 export const OPERATION_HEADER = "X-Envoi-Operation";
-export const BUSY_MESSAGE = "Another demo action is still being processed; check status before trying again.";
-export const STALE_MESSAGE = "The shared demo changed; check status before starting this action.";
+export const BUSY_MESSAGE = "Another request is still being processed; check status before trying again.";
+export const STALE_MESSAGE = "The shared session changed; check status before starting this action.";
 
 export function createDemoGuard({ maxPerMinute = 20, now = Date.now } = {}) {
   let active = false;
@@ -34,7 +34,7 @@ export function createDemoGuard({ maxPerMinute = 20, now = Date.now } = {}) {
     if (req.path !== "/reset") {
       if (starts.length >= maxPerMinute) {
         res.set("Retry-After", "60");
-        res.status(429).json({ error: "Too many demo actions; wait one minute before trying again." });
+        res.status(429).json({ error: "Too many requests; wait one minute before trying again." });
         return;
       }
       starts.push(time);

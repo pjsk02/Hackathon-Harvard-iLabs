@@ -22,7 +22,7 @@ test("Grant-first flow retains the uploaded hidden Word note through both exampl
     assert.deepEqual(labels, ["1 Grant", "2 Clean example", "3 Injected example", "4 Monad evidence"]);
     assert.equal(await h.page.$eval('[data-key="2"]', (b) => (b as HTMLButtonElement).disabled), true);
     const input = await h.page.$('input[type="file"]');
-    await input!.uploadFile(resolve("client/public/samples/JT-Morgan-Q3-Data-Request.docx"));
+    await input!.uploadFile(resolve("client/public/samples/Goldman-Stanley-Q3-Data-Request.docx"));
     await h.page.waitForSelector(".preview .hidden-text");
     const hidden = await h.page.$$eval(".hidden-text", (elements) => elements.map((e) => e.textContent!.trim()));
     assert.ok(hidden.length > 0);
@@ -37,7 +37,7 @@ test("Grant-first flow retains the uploaded hidden Word note through both exampl
     await h.page.keyboard.press("3"); await idle(h.page);
     assert.equal(await h.page.$eval(".stamp", (e) => e.textContent), "BLOCKED");
     const uploaded = h.calls.filter((c) => c.path === "/api/agent/run").at(-1)!.body.upload;
-    assert.equal(uploaded.fileName, "JT-Morgan-Q3-Data-Request.docx");
+    assert.equal(uploaded.fileName, "Goldman-Stanley-Q3-Data-Request.docx");
     for (const text of hidden) assert.ok(uploaded.text.includes(text));
     assert.equal(h.state.counter, 3);
     assert.equal(await h.page.$$eval(".allowed-evidence tbody tr", (rows) => rows.length), 3);
@@ -348,7 +348,7 @@ test("two independent browsers receive a real server refusal for overlapping act
     await first.page.click('[data-key="1"]');
     await api.grantStarted;
     await second.page.click('[data-key="0"]'); await second.page.click('[data-key="0"]'); await idle(second.page);
-    assert.match(await second.page.$eval('[role="alert"]', (node) => node.textContent ?? ""), /Another demo action is still being processed/);
+    assert.match(await second.page.$eval('[role="alert"]', (node) => node.textContent ?? ""), /Another request is still being processed/);
     assert.match(await second.page.$eval(".demo-guide", (node) => node.textContent ?? ""), /Another action is being processed/);
     assert.equal(await second.page.$eval('[data-key="0"]', (button) => (button as HTMLButtonElement).disabled), true);
     assert.equal(await second.page.$eval('[data-key="1"]', (button) => (button as HTMLButtonElement).disabled), true);
@@ -358,7 +358,7 @@ test("two independent browsers receive a real server refusal for overlapping act
     assert.equal(await second.page.$eval('[data-key="2"]', (button) => (button as HTMLButtonElement).disabled), false);
     await second.page.click('[data-key="0"]'); await second.page.click('[data-key="0"]'); await idle(second.page);
     await first.page.click('[data-key="5"]'); await idle(first.page);
-    assert.match(await first.page.$eval('[role="alert"]', (node) => node.textContent ?? ""), /shared demo changed/);
+    assert.match(await first.page.$eval('[role="alert"]', (node) => node.textContent ?? ""), /shared session changed/);
     assert.equal(await first.page.$eval('[data-key="1"]', (button) => (button as HTMLButtonElement).disabled), false);
     assert.deepEqual([...first.errors, ...second.errors], []);
   } finally {
@@ -384,3 +384,50 @@ test("unconfigured signing is explicitly unavailable, and scripted model output 
     assert.equal(await h.page.$eval('[data-key="3"]', (button) => (button as HTMLButtonElement).disabled), true);
   } finally { await h.context.close(); }
 });
+
+for (const path of ["/", "/?view=classic"]) {
+  test(`product guide, names and sample link are consistent without user-facing demo wording (${path})`, async () => {
+    const h = await openHarness(browser, path);
+    try {
+      const text = await h.page.$eval("body", (node) => node.innerText);
+      assert.match(text, /Product guide/);
+      assert.match(text, /Goldman Stanley/);
+      assert.match(text, /McBain/i);
+      const oldCopy = /\bJ\.?\s*T\.?[\s_-]*Morgan\b|\bBaine\b|\bdemo\b/i;
+      assert.doesNotMatch(text, oldCopy);
+      const accessibleCopy = await h.page.$$eval("[aria-label],[title],[alt],[placeholder]", (nodes) =>
+        nodes.map((node) => ["aria-label", "title", "alt", "placeholder"].map((attribute) => node.getAttribute(attribute) ?? "").join(" ")).join(" "));
+      assert.doesNotMatch(accessibleCopy, oldCopy);
+      const download = await h.page.$eval("a[download]", (node) => ({
+        href: node.getAttribute("href"), enabled: node.hasAttribute("download"),
+      }));
+      assert.equal(download.href, "/samples/Goldman-Stanley-Q3-Data-Request.docx");
+      assert.equal(download.enabled, true);
+      if (path.includes("classic")) {
+        await h.page.evaluate(() => {
+          [...document.querySelectorAll("button")].find((button) => button.textContent === "Report with hidden note")!.click();
+        });
+        const report = await h.page.$eval(".doc", (node) => node.textContent ?? "");
+        assert.match(report, /Goldman Stanley/);
+        assert.match(report, /McBain/);
+        assert.doesNotMatch(report, oldCopy);
+      } else {
+        await (await h.page.$('input[type="file"]'))!.uploadFile(resolve("client/public/samples/Goldman-Stanley-Q3-Data-Request.docx"));
+        await h.page.waitForSelector(".preview .hidden-text");
+        const report = await h.page.$eval(".preview", (node) => node.textContent ?? "");
+        assert.match(report, /Goldman Stanley/);
+        assert.match(report, /McBain/);
+        assert.doesNotMatch(report, oldCopy);
+      }
+      const writes = h.calls.filter((call) => !["/api/state", "/api/health"].includes(call.path)).length;
+      assert.equal(writes, 0);
+      const url = new URL(h.page.url());
+      url.search = "?preflight=1";
+      await h.page.goto(url.href, { waitUntil: "networkidle0" });
+      await h.page.waitForSelector('[data-testid="check-status"]:not([disabled])');
+      assert.doesNotMatch(await h.page.$eval("body", (node) => node.innerText), oldCopy);
+      assert.equal(h.calls.filter((call) => call.path === "/api/selftest").length, 0);
+      assert.deepEqual(h.errors, []);
+    } finally { await h.context.close(); }
+  });
+}

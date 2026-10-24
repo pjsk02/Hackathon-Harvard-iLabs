@@ -91,8 +91,8 @@ test("current-generation writes and existing synchronous callers still work", ()
 test("explicit stale writes are rejected without changing state or the counter", () => {
   const generation = state.getResetGeneration();
   state.reset();
-  assert.throws(() => state.addSlip(slip, generation), /demo was reset/);
-  assert.throws(() => state.addReceipt(receipt, generation), /demo was reset/);
+  assert.throws(() => state.addSlip(slip, generation), /session was reset/);
+  assert.throws(() => state.addReceipt(receipt, generation), /session was reset/);
   assert.deepEqual(state.listSlips(), []);
   assert.deepEqual(state.listReceipts(), []);
   assert.equal(state.getCounter(), 0);
@@ -101,7 +101,7 @@ test("explicit stale writes are rejected without changing state or the counter",
 test("an operation cannot enter an already expired generation", () => {
   const generation = state.getResetGeneration();
   state.reset();
-  assert.throws(() => state.withResetGeneration(generation, () => state.addSlip(slip)), /demo was reset/);
+  assert.throws(() => state.withResetGeneration(generation, () => state.addSlip(slip)), /session was reset/);
 });
 
 test("async operations retain their starting generation across awaits", async () => {
@@ -110,8 +110,8 @@ test("async operations retain their starting generation across awaits", async ()
     await Promise.resolve();
     state.reset();
     await Promise.resolve();
-    assert.throws(() => state.addSlip(slip), /demo was reset/);
-    assert.throws(() => state.addReceipt(receipt), /demo was reset/);
+    assert.throws(() => state.addSlip(slip), /session was reset/);
+    assert.throws(() => state.addReceipt(receipt), /session was reset/);
   });
   assert.equal(state.getCounter(), 0);
 });
@@ -119,7 +119,7 @@ test("async operations retain their starting generation across awaits", async ()
 test("a fresh explicit token cannot bypass an expired request context", () => {
   state.withResetGeneration(state.getResetGeneration(), () => {
     state.reset();
-    assert.throws(() => state.addSlip(slip, state.getResetGeneration()), /demo was reset/);
+    assert.throws(() => state.addSlip(slip, state.getResetGeneration()), /session was reset/);
   });
 });
 
@@ -130,7 +130,7 @@ test("one expired operation does not poison the new session", async () => {
     await gate;
     state.addReceipt(receipt);
   });
-  const rejection = assert.rejects(old, /demo was reset/);
+  const rejection = assert.rejects(old, /session was reset/);
   state.reset();
   state.withResetGeneration(state.getResetGeneration(), () => state.addReceipt(receipt));
   finishOld();
@@ -174,7 +174,7 @@ test("HTTP reset prevents a delayed request in another tab from writing", async 
     resume();
     const response = await old;
     assert.equal(response.status, 409);
-    assert.deepEqual(await response.json(), { error: "The demo was reset; start this action again." });
+    assert.deepEqual(await response.json(), { error: "The session was reset; start this action again." });
     assert.equal(state.listSlips().length, 0);
     assert.equal(state.listReceipts().length, 0);
     assert.equal(state.getCounter(), 0);

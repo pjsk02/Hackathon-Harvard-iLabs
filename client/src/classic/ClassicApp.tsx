@@ -66,8 +66,8 @@ export default function ClassicApp({ onSwitchView }: { onSwitchView: () => void 
     setConnection(health.status === "fulfilled" && health.value.ok && !health.value.mockChain && !!health.value.issuer && state.status === "fulfilled"
       ? { state: "unverified", message: "Server responded; signing and the Monad connection are not yet verified." }
       : { state: "unavailable", message: health.status === "fulfilled" && !health.value.issuer
-        ? "Signing is not configured; the live demo cannot start yet."
-        : "The live demo is unavailable; check server status before submitting." });
+        ? "Signing is not configured; live requests cannot start yet."
+        : "Live requests are unavailable; check server status before submitting." });
     if (health.status === "rejected") setError((previous) => previous ?? (health.reason as Error).message);
     setChecking(false);
     operation.current = false;
@@ -104,7 +104,7 @@ export default function ClassicApp({ onSwitchView }: { onSwitchView: () => void 
       setRevealHidden((v) => !v);
       if (activeReport === "clean") setActiveReport("poisoned");
     },
-    sign: () => run("JT Morgan is signing. Stamping on Monad…", async () => {
+    sign: () => run(`${scenario!.client.name} is signing. Stamping on Monad…`, async () => {
       setActiveStep(1);
       await api.sign(scenario!.id);
       setActiveStep(2);
@@ -205,7 +205,7 @@ export default function ClassicApp({ onSwitchView }: { onSwitchView: () => void 
           <h2>Permission slip</h2>
           {original ? <SlipCard slip={original} /> : (
             <div className="card dashed">
-              <p>JT Morgan hasn&apos;t granted Atlas access yet.</p>
+              <p>{scenario.client.name} hasn&apos;t granted Atlas access yet.</p>
               <p className="muted">Click Grant below to start.</p>
             </div>
           )}
@@ -228,7 +228,7 @@ export default function ClassicApp({ onSwitchView }: { onSwitchView: () => void 
                 setRevealHidden(false);
               });
             }} />
-            <a href="/samples/JT-Morgan-Q3-Data-Request.docx" download>Download sample report</a>
+            <a href={COPY.upload.sampleHref} download>Download sample report</a>
           </div>
           <p className="report-file-name">{attached.fileName}</p>
           <article className="card doc">

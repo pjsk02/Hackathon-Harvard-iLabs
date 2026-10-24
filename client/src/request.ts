@@ -26,7 +26,13 @@ export function plainError(message: string): string {
     .replace(/\bTransaction:/gi, "Public record:")
     .replace(/\btransactions\b/gi, "records")
     .replace(/\btransaction\b/gi, "record")
-    .replace(/\b0x[0-9a-f]{64}\b/gi, (value) => `${value.slice(0, 8)}…${value.slice(-6)}`);
+    .replace(/\b0x[0-9a-f]{64}\b/gi, (value) => `${value.slice(0, 8)}…${value.slice(-6)}`)
+    // Older owner branches can still return the previous product wording.
+    // Classification below always uses the original message, not this copy.
+    .replace(/\bJ\.?\s*T\.?[\s_-]*Morgan\b/gi, "Goldman Stanley")
+    .replace(/\bBaine\b/gi, "McBain")
+    .replace(/\blive demo\b/gi, "live workflow")
+    .replace(/\bdemo\b/gi, "session");
 }
 
 export function createRequester({
@@ -110,8 +116,11 @@ export function createRequester({
               (url === "/api/slips" && /^(ISSUER_PRIVATE_KEY.*(?:not set|missing|invalid)|Real Monad transactions are paused|The approved Monad test transaction limit has been reached)/i.test(raw));
             const refused = [400, 404, 413].includes(response.status) ||
               (url === "/api/reset" && response.status === 409) ||
-              (response.status === 409 && /^(Another demo action is still being processed;|The shared demo changed;|Sign the permission slip first\.)/.test(raw)) ||
-              (response.status === 429 && raw === "Too many demo actions; wait one minute before trying again.");
+              (response.status === 409 && /^(Another (?:demo action|request) is still being processed;|The shared (?:demo|session) changed;|Sign the permission slip first\.)/.test(raw)) ||
+              (response.status === 429 && [
+                "Too many demo actions; wait one minute before trying again.",
+                "Too many requests; wait one minute before trying again.",
+              ].includes(raw));
             throw new ApiError(plainError(raw), mutates && !preToolFailure && !setupFailure && !refused);
           }
           if (json === null || typeof json !== "object" || (options.validate && !options.validate(json))) {
