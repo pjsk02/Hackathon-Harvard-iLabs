@@ -25,3 +25,14 @@ or success state to another visitor's new shared run.
 **How to apply:** continuity changes must first read server state, invalidate
 old-run presentation, and never replay a submission to reconstruct the screen.
 Session metadata is not authentication; the demo remains explicitly shared.
+
+Keep competing P3 presentation implementations separate; integrate one tested
+client/server session protocol as a coherent unit.
+
+**Why:** parallel P3 work produced alternative state/transport designs for the
+same requirements. Their individual checks do not establish that combining the
+two implementations preserves the same reset and recovery authority.
+
+**How to apply:** preserve overlapping work separately, choose one handoff
+baseline, and verify both views against its server after merging. Do not copy
+individual session-store or transport files across competing implementations.

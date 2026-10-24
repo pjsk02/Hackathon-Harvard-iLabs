@@ -11,26 +11,32 @@ the full live demo or judge-link closeout is complete.**
 - P3 implementation commit: `84994f8`
 - Upstream main included at handoff preparation: `801dd45`
 - Use the branch's latest commit for the handoff documentation too.
-- GitHub `main` is not changed by publishing this handoff branch.
+- The verified handoff is now integrated into `main` by merge `3f49835`.
 
-The history sync added only the five P1 documentation files missing from the
+The original history sync added only the five P1 documentation files missing from the
 task checkout. It did not alter the tested application tree. P1/P2 code and
 `shared/contract.ts` match the fetched main; their implementations were not
 independently edited.
 
-From a clean team checkout, Aman can fetch and merge without replacing his files:
+After integrating the handoff, P3 reran type checking, all **78 offline checks**,
+all **17 browser checks**, and the production build successfully. The integrated
+application/configuration/dependency tree matches the verified handoff exactly.
+The running initial UI was also checked. No live model call or Monad send was
+performed, and this verification is not live acceptance.
+
+From a clean team checkout, Aman can pull the integrated P3 code without
+replacing his files. No additional merge of the handoff branch is necessary:
 
 ```sh
 git fetch origin
 git switch main
 git pull --ff-only origin main
-git merge --no-ff origin/p3/verified-handoff
 ```
 
 Do not force-push, copy an older project snapshot over main, or drop newer owner
 work. Resolve any subsequent integration conflicts against the latest owner
-implementation. The task fork must also be merged through the main app's
-normal task workflow; a GitHub branch is not a deployed app.
+implementation. Any remaining task-fork integration still follows the main app's
+normal task workflow. Pushing GitHub `main` is not publishing or verifying a deployed app.
 
 ## Checked P3 changes
 
