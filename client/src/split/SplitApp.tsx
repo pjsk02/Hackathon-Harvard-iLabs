@@ -4,6 +4,7 @@ import type { UploadedReport } from "@shared/contract";
 import { ACCEPT, readUpload, type Part } from "./upload";
 import { useWorkspace } from "./use-workspace";
 import { ReceiptDetail, SlipHistory } from "./WorkspaceEvidence";
+import { ChatEnforcement } from "./ChatEnforcement";
 import "./workspace.css";
 
 type RequestInput = { task: string; report: UploadedReport | null };
@@ -93,9 +94,10 @@ export default function SplitApp() {
               {currentConversation.slice().sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map(conversation => <div key={conversation.id}>
                 <div className="messages">
                   <article className="bubble"><span className="kicker">You</span><pre>{conversation.task}</pre>{conversation.report && <details><summary>{conversation.report.fileName}</summary><pre className="untrusted">{conversation.report.text}</pre></details>}</article>
-                  <article className="bubble atlas"><span className="kicker">Atlas</span><pre>{conversation.transcript || (conversation.status === "pending" ? "Response pending." : conversation.status === "unknown" ? "Outcome unknown. Check status in options." : "No written response returned.")}</pre></article>
+                  <article className="bubble atlas"><span className="kicker">Atlas</span>
+                    <ChatEnforcement message={conversation} conversations={data.conversations} receipts={data.receipts} disabled={locked} onView={viewRequest} />
+                    <pre>{conversation.transcript || (conversation.status === "pending" ? "Response pending." : conversation.status === "unknown" ? "Outcome unknown. Check status in options." : "No written response returned.")}</pre></article>
                 </div>
-                <details><summary>Request options</summary><button disabled={locked} onClick={() => viewRequest(conversation)}>{conversation.permissionId ? "View enforcement result" : "Use this request for enforcement"}</button></details>
               </div>)}
             </div>
             <form className="composer" onSubmit={e => { e.preventDefault(); void send(); }}>

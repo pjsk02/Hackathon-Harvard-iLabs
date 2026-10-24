@@ -49,6 +49,10 @@
 .workspace table { border-collapse:collapse; width:100%; font-size:13px; }
 .workspace th,.workspace td { padding:9px; border-bottom:1px solid var(--line); text-align:left; overflow-wrap:anywhere; }
 .workspace .workspace-options { margin-top:18px; }
+.workspace .chat-enforcement { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; justify-content:space-between; padding:10px 12px; margin:10px 0 16px; border:1px solid var(--line); border-radius:10px; background:var(--paper); font-size:13px; line-height:1.5; }
+.workspace .chat-enforcement.allowed { border-color:#b7d5c5; background:#f1f9f4; color:#20533b; }
+.workspace .chat-enforcement.blocked { border-color:#e3c4bf; background:#fff5f3; color:#7a3028; }
+.workspace .chat-enforcement button { min-height:36px; font-size:12px; padding:6px 10px; }
 .workspace .monad-handoff { margin:16px 0; display:grid; justify-items:start; gap:8px; }
 .workspace .monad-transaction-button { display:inline-flex; align-items:center; gap:12px; min-height:44px; padding:12px 18px; border-radius:10px; background:var(--brand-navy,#102f43); color:#fff; font-weight:600; text-decoration:none; }
 .workspace .monad-transaction-button:hover { filter:brightness(1.15); }

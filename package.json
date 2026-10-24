@@ -12,7 +12,7 @@
     "test:state": "node --import tsx --test server/state.test.ts",
     "test:chain": "node --import tsx --test server/chain/chain.test.ts server/chain/permission-service.test.ts server/chain/rpc-safety.test.ts server/chain/attempt-recording.test.ts",
     "test:agent": "node --import tsx --test server/agent/integration.test.ts",
-    "test:client": "node --import tsx --test client/tests/request.test.ts client/tests/attempt-evidence.test.ts client/tests/attempt-request.test.ts",
+    "test:client": "node --import tsx --test client/tests/request.test.ts client/tests/attempt-evidence.test.ts client/tests/attempt-request.test.ts client/tests/chat-enforcement.test.ts",
     "test:ui": "node --import tsx --test --test-concurrency=1 client/tests/workspace-ui.test.ts",
     "test:storage": "node --import tsx --test server/storage/repository.test.ts",
     "test:p2": "node scripts/test-p2.mjs",

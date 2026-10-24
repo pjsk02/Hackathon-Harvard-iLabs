@@ -1,7 +1,7 @@
 // Isolated browser fixtures: every API request is intercepted; no model or chain calls.
 import assert from "node:assert/strict";
 import { before, after, test } from "node:test";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import puppeteer, { type Browser, type Page } from "puppeteer-core";
 import type { WorkspaceResponse } from "../../shared/workspace";
 import type { Receipt } from "../../shared/contract";
@@ -135,6 +135,31 @@ async function chat(h: Harness, task = "Review my document.") {
   await h.page.type("#task", task);
   await clickText(h.page, "Send message");
 }
+
+for (const blocked of [false,true]) test(`chat callout shows ${blocked ? "blocked" : "allowed"} enforcement and opens the saved result without spending again`,async()=>{
+  const h=await harness();
+  try {
+    h.options.denial=blocked ? "scope" : null;
+    await chat(h);
+    assert.ok(await h.page.$('[data-enforcement="not-run"]'));
+    await clickText(h.page,"Enforce permission slip");
+    await clickText(h.page,"Sign selected permissions");
+    await clickText(h.page,"Run Atlas");
+    await clickText(h.page,"Back to chat");
+    const status=await h.page.$eval(".chat-enforcement",node=>node.textContent);
+    assert.ok(status?.includes("Permission slip enforced"));
+    assert.ok(status?.includes(blocked ? "Blocked access" : "Within scope"));
+    const spendingBefore=h.calls.filter(c=>["/api/workspace/run","/api/workspace/sign","/api/workspace/chat"].includes(c.path)).length;
+    if(blocked) {
+      mkdirSync("generated-artifacts",{recursive:true});
+      await h.page.screenshot({path:"generated-artifacts/chat-enforcement-callout.jpg",fullPage:true});
+    }
+    await clickText(h.page,"View enforcement");
+    assert.ok(await h.page.$(".checks"));
+    assert.equal(h.calls.filter(c=>["/api/workspace/run","/api/workspace/sign","/api/workspace/chat"].includes(c.path)).length,spendingBefore);
+    assert.deepEqual(h.errors,[]);
+  } finally { await h.context.close(); }
+});
 
 test("sequential draft → normal chat → explicit sign → explicit run retains original input", async () => {
   const h = await harness();
