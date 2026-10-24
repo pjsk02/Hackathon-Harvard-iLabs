@@ -2,13 +2,29 @@
 // Created lazily: never touch the network at boot.
 import Anthropic from "@anthropic-ai/sdk";
 
-export function llmClient(): Anthropic {
-  const replitKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
-  const replitUrl = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
-  if (replitKey && process.env.USE_OWN_KEY !== "1") return new Anthropic({ apiKey: replitKey, baseURL: replitUrl });
-  if (process.env.ANTHROPIC_API_KEY) return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+export function providerOptions(env: Record<string, string | undefined>) {
+  const common = { timeout: 8_000, maxRetries: 0 };
+  const replitKey = env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
+  const replitUrl = env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
+  if (replitKey && env.USE_OWN_KEY !== "1") {
+    if (!replitUrl || new URL(replitUrl).protocol !== "https:") {
+      throw new Error("The managed AI provider needs a valid HTTPS base URL.");
+    }
+    return { ...common, apiKey: replitKey, baseURL: replitUrl };
+  }
+  if (env.ANTHROPIC_API_KEY) return { ...common, apiKey: env.ANTHROPIC_API_KEY };
   throw new Error("No AI credentials. Add the Anthropic AI integration or ANTHROPIC_API_KEY.");
 }
 
-export const llmConfigured = () =>
-  Boolean(process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY);
+export function llmClient(): Anthropic {
+  return new Anthropic(providerOptions(process.env));
+}
+
+export function llmConfigured(): boolean {
+  try {
+    providerOptions(process.env);
+    return true;
+  } catch {
+    return false;
+  }
+}

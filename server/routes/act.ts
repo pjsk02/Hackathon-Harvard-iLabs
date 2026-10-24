@@ -6,8 +6,19 @@ import { httpError } from "../http";
 
 export const actRouter = Router();
 
+export function parseActRequest(body: unknown): ActRequest {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw httpError(400, "agentId, mandateId and action are required.");
+  }
+  const { agentId, mandateId, action } = body as Record<string, unknown>;
+  const valid = (value: unknown): value is string =>
+    typeof value === "string" && value.length > 0 && value.length <= 200 && value.trim() === value;
+  if (!valid(agentId) || !valid(mandateId) || !valid(action)) {
+    throw httpError(400, "agentId, mandateId and action must be non-empty strings of at most 200 characters.");
+  }
+  return { agentId, mandateId, action };
+}
+
 actRouter.post("/api/act", async (req, res) => {
-  const { agentId, mandateId, action } = (req.body ?? {}) as Partial<ActRequest>;
-  if (!agentId || !mandateId || !action) throw httpError(400, "agentId, mandateId and action are required.");
-  res.json(await act({ agentId, mandateId, action }, "forced"));
+  res.json(await act(parseActRequest(req.body), "forced"));
 });
