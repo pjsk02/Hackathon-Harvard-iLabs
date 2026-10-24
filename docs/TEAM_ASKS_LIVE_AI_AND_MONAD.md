@@ -44,6 +44,7 @@ Your plan (`P1_IMPLEMENTATION_PLAN.md`) proposes block-order evidence and pendin
 
 The requested demo includes on-chain attempts. P1's reviewed branch records permissions, not attempts; current request rows remain explicitly labeled application records. To finish:
 
+- **Proposal for Aman and Jay to approve:** [Attempt recording handoff](ATTEMPT_RECORDING_HANDOFF.md). It specifies the additive evidence/status fields, ownership, privacy boundary, reset/retry policy and offline/live test gates. It is a proposal only; no teammate code or frozen contract has been changed, and live sends remain paused.
 - Please carry it in an **additive** field on `Receipt`, e.g. `anchor?: Anchor | null` (same shape as the slip's anchor), rather than reusing `receipt.explorerUrl`, which today points at the slip that was checked (the dispute scene depends on that).
 - After the response shape is agreed, the screen can link each attempt to its own record. Rachel does not want an elapsed-time/bracket display; block ordering still matters to the backend decision.
 - `MOCK_CHAIN` remains removed. P1's real ledger and signing implementation are now integrated, but `MONAD_MAX_TRANSACTIONS=0` explicitly keeps sends paused. The issuer credential and a separately approved live-test allowance are still required; credentials do not travel with a Git push.

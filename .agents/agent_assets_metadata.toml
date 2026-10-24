@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "ICHmW9z9IkXof9wetBWbQ"
+uri = "file://docs/ATTEMPT_RECORDING_HANDOFF.md"
+type = "text"
+title = "Proposal for Aman and Jay — Markdown download"
+description = "Download the .md handoff proposal, including the proposed attempt-recording fields, responsibilities, safeguards, test plan, and approval checklist."
+logical_id = "da07cbcf-0291-4dd4-9b20-e46f788e5df5"
+content_hash = "sha256:8ae68edad687a6fae9bbc2e9d5ff2efbe7742a83e8a83ad76c2db8a41510cf55"
+size = 16536
+mtime_ms = 1792859604360
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:31bb959a-6725-4b94-8f0f-9ce556ca6654/da07cbcf-0291-4dd4-9b20-e46f788e5df5/f88d4537-373f-445c-9417-cc80726881d1"
+storage_version_token = "1792859833114665"
+content_type = "text/markdown"

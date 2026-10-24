@@ -56,6 +56,8 @@ and no live-chain signing or readback success is claimed.
    permissions. A dispute receipt's explorer link refers to the amended
    permission. Do not attach that link to an attempt as if it proves the attempt.
    Agree additive evidence fields and implement actual request recording.
+   The [attempt recording handoff](ATTEMPT_RECORDING_HANDOFF.md) is now a
+   concrete proposal for P1/P2/team agreement, not an implemented fix or live pass.
 4. **A confirmed mined failure can be retried as a new send.** The ledger drops
    a failed pending record; repeating that permission request can use another
    allowance slot. This is different from retrying unknown submission, which
