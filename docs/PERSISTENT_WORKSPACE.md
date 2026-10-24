@@ -18,4 +18,6 @@ The public 21st.dev community component directory was accessible and assessed on
 
 ## Verification
 
+User-requested document chat is independent of protected-data access: `/api/workspace/chat` uses the configured Anthropic client, the current extracted attachment and recent conversation, with no tools or chain writes. Daily limits are 20 messages per workspace and 200 shared, counting unknown attempts; reset does not refund them. No sample download or export feature is included. Protected-data agent calls continue to require a signed version and their separate approved budgets.
+
 `npm test`, `npm run test:storage`, `npm run test:ui`, `npm run typecheck`, `npm run build`. Browser fixtures intercept external APIs; storage tests use disposable rows in managed development PostgreSQL and never approve chain/model budgets. No live chain transaction or paid model verification is authorized by these tests.

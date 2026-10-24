@@ -10,6 +10,7 @@ import { buildMandate, signMandate } from "../chain/slip";
 import { act } from "../gateway/gateway";
 import { proposeCalls, validateAgentInput } from "../agent/agent";
 import { llmConfigured } from "../agent/llm";
+import { chatWithDocument } from "../agent/chat";
 import { httpError, HttpError } from "../http";
 import { activeExternal, budget, checkpoint, finish, freshDocument, load, pool, reserve, spend, transaction, workspace, workspaceSession, type Operation, type Workspace } from "../storage/repository";
 
@@ -34,7 +35,7 @@ async function availability() {
     Number(process.env.MONAD_MAX_TRANSACTIONS ?? 0) > 0 && !!b && b.spent < b.approved && !pending.rowCount;
   const agent = live && llmConfigured() && !!m && m.spent < m.approved;
   return {
-    signing: live, agent,
+    signing: live, agent, chat: llmConfigured(),
     detail: !live ? "Live recording is unavailable. The operator must configure signing and approve a remaining durable Monad allowance; unresolved issuer transactions must be checked first. Reset does not renew allowances."
       : !agent ? "Recording is available. To run Atlas, configure Anthropic and approve a remaining AI-call allowance." :
         "Live operations are configured. Each request consumes approved allowances; connectivity is verified when requested.",
@@ -140,6 +141,33 @@ workspaceRouter.post("/api/workspace/run", async (req,res) => {
       }
       conversation.status = "complete";
     } catch (error) { conversation.status = "unknown"; throw error; }
+  }));
+});
+
+workspaceRouter.post("/api/workspace/chat", async (req,res) => {
+  const input = validateAgentInput({reportId:"clean",task:req.body?.task,...(req.body?.report ? {upload:req.body.report} : {})});
+  if (!input.task) throw httpError(400,"Write a message before sending.");
+  res.json(await perform(requestKey(req.get("Idempotency-Key")),"chat",input,async (w,op) => {
+    if (!llmConfigured()) throw httpError(503,"Configure the Anthropic secret key to enable document chat.");
+    if (w.document.conversations.length >= 100) throw httpError(429,"This workspace has reached its 100-message limit.");
+    // User-initiated document chat has bounded daily usage, independent of chain approval.
+    // Pending/unknown attempts count too; a restart or reset cannot refund calls.
+    await transaction(async c => {
+      await c.query("SELECT pg_advisory_xact_lock(9172404)");
+      const count = (await c.query("SELECT count(*)::int AS total,count(*) FILTER(WHERE workspace_id=$1)::int AS local FROM envoi_operations WHERE kind='chat' AND created_at > now()-interval '24 hours'",[w.id])).rows[0];
+      if (count.local > 20 || count.total > 200) throw httpError(429,"Document chat has reached its daily limit (20 messages per workspace, 200 shared). Please try again tomorrow.");
+    });
+    const history = [...w.document.conversations];
+    const conversation = {id:op.id,task:input.task!,report:input.upload ?? null,permissionId:"",createdAt:new Date().toISOString(),transcript:"",receiptIds:[] as string[],status:"pending" as "pending"|"complete"|"unknown"};
+    w.document.conversations.push(conversation);
+    w.document.draft.task = input.task!;
+    w.document.draft.report = input.upload ?? null;
+    op.payload = {external:true,conversationId:op.id};
+    await checkpoint(w,op,op.payload);
+    try {
+      conversation.transcript = await chatWithDocument(input.task!,input.upload ?? null,history);
+      conversation.status = "complete";
+    } catch(error) { conversation.status="unknown"; throw error; }
   }));
 });
 

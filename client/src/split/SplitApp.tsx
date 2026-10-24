@@ -69,8 +69,11 @@ export default function SplitApp() {
         </select>
         <div className="row" style={{ marginTop: 12 }}>
           <button disabled={locked || !dirty} onClick={async () => { if (await post("/draft", draft, true)) setSaved(true); }}>Save draft</button>
+          <button className="primary" disabled={spendingBlocked || !data.availability.chat || !draft.task.trim()} onClick={() => void post("/chat", {task:draft.task,report:draft.report})}>Send message</button>
           <button className="primary" disabled={spendingBlocked || !data.availability.signing || !data.availability.agent || !validSlip || !draft.task.trim()} onClick={() => void post("/run", { task: draft.task, report: draft.report, permissionId: selectedId })}>Run Atlas</button>
         </div>
+        <p className="fine">Send message chats with Claude about your own attached document—no permission slip or Monad transaction required. Run Atlas requests protected company data using the selected slip. Document chat: 20 messages per workspace per day, 200 shared.</p>
+        {!data.availability.chat && <p className="notice">Document chat needs the configured Anthropic secret key. Refresh status after configuration.</p>}
         <p className="fine" role="status">{dirty ? "Unsaved draft changes." : saved ? "Draft saved to this workspace." : "Draft restored from this workspace."}</p>
         {!validSlip && <p className="fine">Choose a stamped, unexpired permission slip before requesting data.</p>}
         <h2>Conversations</h2>
@@ -78,7 +81,7 @@ export default function SplitApp() {
         {data.conversations.map(conversation => <article className="sheet" key={conversation.id}>
           <div className="conversation-task"><span className="kicker">You · {conversation.status}</span><pre>{conversation.task}</pre>{conversation.report && <details><summary>Report: {conversation.report.fileName}</summary><p className="fine">Untrusted extracted text, including any hidden content.</p><pre className="untrusted">{conversation.report.text}</pre></details>}</div>
           <span className="kicker">Atlas</span><pre>{conversation.transcript || (conversation.status === "pending" ? "This run is still pending. Check its operation status." : conversation.status === "unknown" ? "The outcome is unknown. Check operation status before another run." : "No written response returned.")}</pre>
-          <p className="fine">Permission: {conversation.permissionId} · {new Date(conversation.createdAt).toLocaleString()}</p>
+          <p className="fine">{conversation.permissionId ? `Permission: ${conversation.permissionId}` : "Document chat · no protected-data access"} · {new Date(conversation.createdAt).toLocaleString()}</p>
           <div className="row">{conversation.receiptIds.map(id => <button key={id} onClick={() => setReceiptId(id)}>Inspect receipt {id.slice(-8)}</button>)}</div>
         </article>)}
       </section>

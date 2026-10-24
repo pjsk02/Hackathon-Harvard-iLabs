@@ -55,6 +55,22 @@ async function harness() {
   return { context, page, state, calls, errors, options };
 }
 
+test("document chat sends the user's own extracted file without a signed permission or chain allowance",async()=>{
+  const h=await harness();
+  try {
+    h.state.slips=[];
+    h.state.availability={signing:false,agent:false,chat:true,detail:"Chain paused; document chat configured."};
+    await clickText(h.page,"Refresh status");
+    await h.page.waitForFunction(()=>[...document.querySelectorAll("button")].some(b=>b.textContent==="Send message"&&!b.disabled));
+    await clickText(h.page,"Send message");
+    await h.page.waitForFunction(()=>![...document.querySelectorAll("button")].find(b=>b.textContent==="Send message")?.disabled);
+    const sent=h.calls.find(c=>c.path==="/api/workspace/chat");
+    assert.ok(sent?.key);
+    assert.deepEqual(sent?.body,{task:h.state.draft.task,report:h.state.draft.report});
+    assert.equal(h.calls.some(c=>c.path==="/api/workspace/sign"||c.path==="/api/workspace/act"),false);
+  } finally {await h.context.close();}
+});
+
 test("persistent entry hydrates draft, exposes all six manual actions and sends keyed requests", async () => {
   const h = await harness();
   try {

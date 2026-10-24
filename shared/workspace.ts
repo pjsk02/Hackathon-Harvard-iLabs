@@ -23,5 +23,5 @@ export type OperationSummary = { id: string; kind: string; status: string; detai
 export type WorkspaceResponse = {
   generation: number; draft: Draft; conversations: Conversation[]; slips: Slip[]; receipts: Receipt[];
   operations: OperationSummary[];
-  availability: { signing: boolean; agent: boolean; detail: string };
+  availability: { signing: boolean; agent: boolean; chat?: boolean; detail: string };
 };

@@ -24,6 +24,8 @@ export function getResetGeneration(): number {
 
 // P1's permission-service consumes this name; both getters share one counter.
 export const getGeneration = getResetGeneration;
+// Compatibility for retired demo modules; not an access capability.
+export const getSessionId = () => `retired-session-${getGeneration()}`;
 
 export function isCurrentGeneration(expected: number): boolean {
   return expected === current().generation;
@@ -32,7 +34,7 @@ export function isCurrentGeneration(expected: number): boolean {
 export function assertCurrentGeneration(expected: number): void {
   const started = requestGeneration.getStore();
   if (!isCurrentGeneration(expected) || (started !== undefined && !isCurrentGeneration(started))) {
-    throw httpError(409, "The demo was reset; start this action again.");
+    throw httpError(409, "The session was reset; start this action again.");
   }
 }
 

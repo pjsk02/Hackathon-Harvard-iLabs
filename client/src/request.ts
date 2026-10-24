@@ -1,5 +1,5 @@
 // Transport only: never retries a write or interprets a lost response as cancellation.
-export type PendingAction = { path: string; label: string; phase: "waiting" | "unconfirmed"; idempotencyKey?: string };
+export type PendingAction = { path: string; label: string; phase: "waiting" | "unconfirmed"; idempotencyKey?: string; sessionId?: string };
 export class ApiError extends Error {
   constructor(message: string, public outcomeUnknown = false) {
     super(message);
@@ -14,6 +14,7 @@ type Options<T> = {
   mutates?: boolean;
   timeoutMs?: number;
   validate?: (value: unknown) => value is T;
+  onSuccess?: (value: T, response: Response) => void;
 };
 type Store = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 const STORAGE_KEY = "envoi-unconfirmed-action";
@@ -23,6 +24,7 @@ const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 
 export function plainError(message: string): string {
   return message
+    .replace(/Too many demo actions/g, "Too many requests")
     .replace(/\s*Set MOCK_CHAIN=1 to use the mock\.?/, "")
     .replace(/\bTransaction:/gi, "Public record:")
     .replace(/\btransactions\b/gi, "records")
@@ -35,11 +37,13 @@ export function createRequester({
   storage,
   readTimeoutMs = 15_000,
   actionTimeoutMs = 90_000,
+  getSessionId,
 }: {
   fetcher?: typeof fetch;
   storage?: Store;
   readTimeoutMs?: number;
   actionTimeoutMs?: number;
+  getSessionId?: () => string | null;
 } = {}) {
   let pending: PendingAction | null = null;
   const listeners = new Set<() => void>();
@@ -47,6 +51,7 @@ export function createRequester({
     const saved = JSON.parse(storage?.getItem(STORAGE_KEY) ?? "null");
     if (saved && ACTIONS.has(saved.path) && typeof saved.label === "string") {
       pending = { path: saved.path, label: saved.label.slice(0, 80), phase: "unconfirmed" };
+        if (typeof saved.sessionId === "string") pending.sessionId = saved.sessionId;
       if (typeof saved.idempotencyKey === "string" && UUID_V4.test(saved.idempotencyKey)) {
         pending.idempotencyKey = saved.idempotencyKey;
       }
@@ -70,6 +75,7 @@ export function createRequester({
       throw new ApiError("An earlier action is not confirmed; check its status before starting another.", true);
     }
     const action: PendingAction = { path: url, label: options.label ?? "Action", phase: "waiting" };
+    action.sessionId = getSessionId?.() ?? undefined;
     // Generate only after the existing concurrency guard, once per logical action.
     // Uncertain actions retain their identity in session storage; they are never automatically repeated.
     if (method === "POST" && IDEMPOTENT_ACTIONS.has(url)) action.idempotencyKey = crypto.randomUUID();
@@ -91,6 +97,7 @@ export function createRequester({
             headers: {
               ...(options.body === undefined ? {} : { "Content-Type": "application/json" }),
               ...(action.idempotencyKey ? { "Idempotency-Key": action.idempotencyKey } : {}),
+              ...(action.sessionId ? { "X-Envoi-Session": action.sessionId } : {}),
             },
             credentials: "include",
             body: options.body === undefined ? undefined : JSON.stringify(options.body),
@@ -106,8 +113,12 @@ export function createRequester({
             const raw = json && typeof json === "object" && "error" in json && typeof json.error === "string"
               ? json.error : "The server could not complete the request.";
             // These explicit setup failures cannot have submitted an action.
-            const notStarted = /not built yet|^ISSUER_PRIVATE_KEY.*(?:not set|missing|invalid)|^Real Monad transactions are paused|^The approved Monad test transaction limit has been reached/i.test(raw);
-            throw new ApiError(plainError(raw), mutates && response.status >= 500 && !notStarted);
+            const notStarted = (url === "/api/slips" && /not built yet|^ISSUER_PRIVATE_KEY.*(?:not set|missing|invalid)|^Real Monad transactions are paused|^The approved Monad test transaction limit has been reached/i.test(raw)) ||
+              (url === "/api/selftest" && response.status === 501) ||
+              (url === "/api/agent/run" && raw === "The AI service did not answer. Use Force the request.");
+            const refused = [400,404,413,429].includes(response.status) || (response.status === 409 &&
+              (url === "/api/reset" || /^(Another (?:demo action|request) is still being processed;|The shared (?:demo|session) changed;|Sign the permission slip first\.)/.test(raw)));
+            throw new ApiError(plainError(raw), mutates && !notStarted && !refused);
           }
           if (json === null || typeof json !== "object" || (options.validate && !options.validate(json))) {
             throw new ApiError("The server returned an incomplete response.", mutates);
@@ -135,8 +146,8 @@ export function createRequester({
       return () => { listeners.delete(listener); };
     },
     // Only an authoritative returned permission or confirmed Reset may clear recovery.
-    confirmGrant: () => {
-      if (pending?.path === "/api/slips" && pending.phase === "unconfirmed") publish(null);
+    confirmGrant: (sessionId?: string) => {
+      if (pending?.path === "/api/slips" && pending.phase === "unconfirmed" && (!pending.sessionId || pending.sessionId === sessionId)) publish(null);
     },
   };
 }

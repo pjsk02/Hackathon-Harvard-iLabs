@@ -97,7 +97,7 @@ export async function reserve(id: string, kind: string, input: unknown): Promise
       return { ...prior, reused: true };
     }
     if (locked.active_operation) throw httpError(409, "An operation has an unconfirmed outcome. Check its status before making another change.");
-    if (["sign","run","act"].includes(kind) && (await c.query("SELECT 1 FROM envoi_operations WHERE workspace_id=$1 AND status IN ('pending','unknown') LIMIT 1", [w.id])).rowCount) {
+    if (["sign","run","act","chat"].includes(kind) && (await c.query("SELECT 1 FROM envoi_operations WHERE workspace_id=$1 AND status IN ('pending','unknown') LIMIT 1", [w.id])).rowCount) {
       throw httpError(409, "A previous operation remains unconfirmed, including after reset. Check its status; it will not be repeated.");
     }
     await c.query("SELECT pg_advisory_xact_lock(9172402)");

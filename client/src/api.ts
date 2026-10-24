@@ -8,7 +8,6 @@ import { demoPresentation } from "./demo-presentation";
 
 const transport = createRequester({
   storage: typeof window !== "undefined" ? (() => { try { return window.sessionStorage; } catch { return undefined; } })() : undefined,
-  getSessionId: () => demoPresentation.getSnapshot().sessionId,
 });
 const call = transport.request;
 
@@ -19,14 +18,6 @@ export const api = {
   state: async () => {
     const result = await call<StateResponse>("/api/state", {
       validate: isState,
-      onSuccess: (state, response) => {
-        const sessionId = response.headers.get("X-Envoi-Session");
-        if (!sessionId || !/^[a-z0-9-]{16,80}$/i.test(sessionId)) {
-          throw new ApiError("The current session could not be identified; check status before submitting.");
-        }
-        demoPresentation.acceptState(sessionId, state, response.headers.get("X-Envoi-Operation") === "busy");
-        if (state.slips.some((s) => s.label === "Original" && hasRecordedPermission(s))) transport.confirmGrant(sessionId);
-      },
     });
     return result;
   },
