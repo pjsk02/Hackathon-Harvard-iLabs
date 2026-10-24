@@ -11,6 +11,8 @@ expertMode = true
 [userenv.development]
 MOCK_CHAIN = "0"
 
+[userenv.shared]
+
 [workflows]
 runButton = "Project"
 
