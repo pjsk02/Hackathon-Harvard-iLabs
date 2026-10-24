@@ -6,7 +6,7 @@ import type { AttemptRecord, Receipt, Slip } from "../../shared/contract";
 import { AGENT_ID, CHAIN_ID, EXPLORER_TX_URL, MANDATE_ID, RESOURCE } from "../../shared/contract";
 import { ATTEMPT_CHECK_IDS, attemptFingerprint, canonicalAttemptRecord } from "../../shared/attempt-record";
 import * as state from "../state";
-import { createGateway } from "../gateway/gateway";
+import { createGateway } from "../gateway/workspace-gateway";
 import { createAttemptService } from "./attempts";
 import { createMonadLedger } from "./ledger";
 import { createPermissionService } from "./permission-service";

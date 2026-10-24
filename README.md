@@ -1,4 +1,55 @@
-# Envoi Replit Agent skills
+# Envoi — local development
+
+Use Node.js 22.12 or newer. Development runs one Express process with Vite on
+[localhost:5000](http://localhost:5000); no Replit runtime is required.
+
+From PowerShell in the project directory:
+
+```powershell
+npm ci
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+npm run dev
+```
+
+Both startup commands load the optional root `.env` file. Existing shell
+environment variables take precedence. Restart after changing `.env`. The supplied
+configuration uses `MOCK_CHAIN=0` and `MONAD_MAX_TRANSACTIONS=0`: real-chain mode
+is selected, but live transactions remain paused. Keep the allowance at zero;
+do not restore application mock mode or run signing/live smoke tests as setup.
+
+For the AI connection, set `ANTHROPIC_API_KEY` in your ignored `.env` and keep
+`USE_OWN_KEY=1`. Coordinate the funded test-only issuer key with Aman separately.
+Credentials from Replit Secrets are not transferred by Git. The app can start
+without credentials; its setup status will show signing as unavailable.
+
+```powershell
+npm run typecheck
+npm test
+npm run build
+npm start
+```
+
+`npm start` serves the production build on the same port. Stop development before
+starting it. `npm test` includes the P2 suite; `npm run test:p2` runs that suite
+alone with test-only chain fixtures, zero transaction allowance, no inherited
+provider/wallet credentials, and the live-provider smoke test disabled.
+These checks do not establish live-model or real-chain acceptance.
+
+For the existing isolated browser suite, start development, then in another
+PowerShell terminal:
+
+```powershell
+$env:ENVOI_TEST_BASE_URL = "http://127.0.0.1:5000"
+$env:CHROMIUM_EXECUTABLE_PATH = "C:/Program Files/Google/Chrome/Application/chrome.exe"
+npm run test:ui
+```
+
+Use the path to your installed Chrome or Edge executable. No browser is downloaded.
+See [the integration handoff](docs/P3_INTEGRATION_HANDOFF.md) for remaining shared
+work; this setup does not implement request-context retention or the production
+self-test adapter. The agent-skill reference below preserves the original build notes.
+
+## Envoi Replit Agent skills
 
 Eight skills for the hackathon build. Each folder in `.agents/skills/` has one `SKILL.md`. Replit Agent reads every skill's name and description on each chat and loads the full skill only when the task needs it.
 

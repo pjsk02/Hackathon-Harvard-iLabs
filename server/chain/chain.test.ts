@@ -7,7 +7,7 @@ import { createMockLedger } from "./mockLedger";
 import { stampMatchesRequest } from "./evidence";
 import { ChainError, RpcWriteError, createRpcClient, type RpcCall } from "./rpc";
 import { mondayNineNY, slipsRouter } from "../routes/slips";
-import { act } from "../gateway/gateway";
+import { act } from "../gateway/workspace-gateway";
 import * as state from "../state";
 import express from "express";
 import { errorHandler } from "../http";
