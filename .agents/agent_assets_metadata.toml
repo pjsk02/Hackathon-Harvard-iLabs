@@ -1,0 +1,30 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "KIcXxvn9c0m4uf8DSFfHr"
+uri = "file://docs/P1_TWO_HOUR_PLAN.md"
+type = "text"
+title = "P1 two-hour implementation plan"
+description = "Reviewed plan with timeboxes, ownership, acceptance gates, scope cuts and remaining decisions."
+logical_id = "61435a79-9816-4528-8bf6-0f738a2595fe"
+content_hash = "sha256:b64802f388c0ab02a5e18c55f11852fe590d3601967dfe878b116334088b82fc"
+size = 18433
+mtime_ms = 1792854593751
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:27d20b68-9e8c-4ebe-bd58-28e2147dcdeb/61435a79-9816-4528-8bf6-0f738a2595fe/76bba292-32f2-4836-80f5-868cd7e1dca2"
+storage_version_token = "1792854656449641"
+content_type = "text/markdown"
+
+[[outputs]]
+id = "cStEnhSOsqJ2Z_nAwGMsq"
+uri = "file://docs/P1_COUNCIL_REVIEW.md"
+type = "text"
+title = "P1 adversarial council findings"
+description = "Findings from three independent reviewers, checked against the code and incorporated into the revised plan."
+logical_id = "c9a02f43-f71f-4533-a805-f73a4966d1b9"
+content_hash = "sha256:9da648237407fc9781e6c34a47579e3edf14c1bc9a9ffdffec0133766d697c46"
+size = 9125
+mtime_ms = 1792854620819
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:27d20b68-9e8c-4ebe-bd58-28e2147dcdeb/c9a02f43-f71f-4533-a805-f73a4966d1b9/c9809e21-364e-4c23-9f64-e1ceed813d8f"
+storage_version_token = "1792854656954126"
+content_type = "text/markdown"
