@@ -4,3 +4,4 @@
 - [Reset protection boundary](reset-boundaries.md) — stale-write guards and retry-cache isolation are separate; neither cancels an already broadcast chain record.
 - [Live verification approval](live-verification-approval.md) — approved testnet writes are counted across restarts; the original five-write allowance is spent.
 - [Explorer handoff](explorer-handoff.md) — preserve the presenter’s place in Envoi while opening the independent public transaction record separately.
+- [Persistent evaluation scope](persistent-evaluation.md) — approved persistent anonymous product overrides older demo-only and teammate ownership restrictions, not live-spending limits.

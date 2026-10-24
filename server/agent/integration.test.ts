@@ -68,7 +68,7 @@ test("one genuine model request uses uploaded text including hidden notes, never
     calls++;
     assert.equal(body.tool_choice?.type, "any");
     assert.equal(body.max_tokens, 512);
-    assert.equal(body.tools?.length, 2);
+    assert.equal(body.tools?.length, 6);
     const content = JSON.stringify(body.messages);
     assert.ok(content.includes("hidden-instruction-marker"));
     assert.ok(!content.includes("[[HIDDEN]]"));
@@ -79,7 +79,7 @@ test("one genuine model request uses uploaded text including hidden notes, never
   const result = await agent(validateAgentInput({
     reportId: "clean", upload: { fileName: "report.txt", text: "Visible text [[HIDDEN]]hidden-instruction-marker[[/HIDDEN]]" },
   }));
-  assert.deepEqual(result.calls, [allowed, forbidden, allowed]);
+  assert.deepEqual(result.calls, [allowed, forbidden]);
   assert.equal(result.transcript, "Real provider text.");
   assert.equal(calls, 1);
 });

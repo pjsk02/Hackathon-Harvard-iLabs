@@ -42,7 +42,7 @@ export type AttemptRecord = {
   permissionFingerprint: string;
   requestBlock: { blockNumber: number; blockHash: string; blockTimestamp: number };
   agent: "atlas-research-agent" | "other";
-  action: "read_regional_margins" | "read_employee_salaries" | "other";
+  action: import("./workspace").ActionId | "other";
   source: "agent" | "forced";
   decision: "ALLOWED" | "BLOCKED";
   checks: { id: CheckId; pass: boolean }[];
@@ -97,7 +97,7 @@ export type ActRequest = { agentId: string; mandateId: string; action: string };
  *  when present, the agent reads `text` instead of the built-in report. `text` is everything
  *  in the file, including text people can't see. */
 export type UploadedReport = { fileName: string; text: string };
-export type AgentRunRequest = { reportId: ReportId; upload?: UploadedReport };
+export type AgentRunRequest = { reportId: ReportId; upload?: UploadedReport; task?: string };
 export type AgentRunResponse = { transcript: string; proposedCalls: string[]; receipts: Receipt[] };
 export type AgentEvalResponse = { n: number; salariesProposed: number; rate: number };
 export type SelftestStep = { scene: string; expected: string; got: string; ms: number };

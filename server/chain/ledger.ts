@@ -5,6 +5,7 @@ import type { ChainReference, LookupResult } from "./evidence";
 import { ChainError, RpcWriteError, createRpcClient, remaining, type RpcCall } from "./rpc";
 import { chainDeadline } from "./deadline";
 import type { AnchorOptions, RecordingResult } from "./recording-types";
+import { journaledRpc, settleJournal } from "../storage/broadcast";
 export type { ChainReference, LookupResult } from "./evidence";
 
 type Block = { number: string; hash: string; timestamp: string };
@@ -278,7 +279,22 @@ const rpc = createRpcClient(() => [
   "https://rpc-testnet.monadinfra.com",
   "https://rpc.ankr.com/monad_testnet",
 ]);
-const ledger = createMonadLedger(rpc, configuredWallet, {
+const ledger = createMonadLedger(journaledRpc(rpc), configuredWallet, {
   maxTransactions: () => Number(process.env.MONAD_MAX_TRANSACTIONS ?? "0"),
 });
-export const { anchor, lookup, latestReference, latestTimestamp, budgetStatus, recordFingerprint, reconcileFingerprint } = ledger;
+export const { lookup, latestReference, latestTimestamp, budgetStatus } = ledger;
+export async function anchor(digest: string, options?: AnchorOptions) {
+  const result = await ledger.anchor(digest, options);
+  await settleJournal(result.txHash, "recorded");
+  return result;
+}
+export async function recordFingerprint(digest: string, beforeSend: () => void) {
+  const result = await ledger.recordFingerprint(digest, beforeSend);
+  if (result.status !== "pending" && result.txHash) await settleJournal(result.txHash, result.status);
+  return result;
+}
+export async function reconcileFingerprint(digest: string, hash: string) {
+  const result = await ledger.reconcileFingerprint(digest, hash);
+  if (result.status !== "pending") await settleJournal(hash, result.status);
+  return result;
+}

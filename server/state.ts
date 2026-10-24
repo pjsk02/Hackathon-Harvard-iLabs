@@ -6,24 +6,27 @@ import type { OriginalRequestContext } from "./chain/evidence";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { httpError } from "./http";
 
-const slips = new Map<string, Slip>();
-const requestContexts = new Map<string, OriginalRequestContext>();
-let receipts: Receipt[] = []; // stored oldest first
-let counter = 0; // requests checked since last reset
-let nextId = 1;
-let resetGeneration = 0;
+export type StateSnapshot = {
+  slips: Slip[]; contexts: [string, OriginalRequestContext][];
+  receipts: Receipt[]; counter: number; nextId: number; generation: number;
+};
+export const emptySnapshot = (): StateSnapshot => ({ slips: [], contexts: [], receipts: [], counter: 0, nextId: 1, generation: 0 });
+const fallback = emptySnapshot(); // Offline legacy tests only; HTTP uses isolated durable snapshots.
+const workspaceState = new AsyncLocalStorage<StateSnapshot>();
+const current = () => workspaceState.getStore() ?? fallback;
+export const withSnapshot = <T>(snapshot: StateSnapshot, work: () => T): T => workspaceState.run(snapshot, work);
 const requestGeneration = new AsyncLocalStorage<number>();
 
 /** Capture once at the start of an operation; retry caches must include this value. */
 export function getResetGeneration(): number {
-  return resetGeneration;
+  return current().generation;
 }
 
 // P1's permission-service consumes this name; both getters share one counter.
 export const getGeneration = getResetGeneration;
 
 export function isCurrentGeneration(expected: number): boolean {
-  return expected === resetGeneration;
+  return expected === current().generation;
 }
 
 export function assertCurrentGeneration(expected: number): void {
@@ -48,16 +51,17 @@ function assertWritable(expected?: number): void {
 
 export function addSlip(slip: Slip, expectedGeneration?: number): Slip {
   assertWritable(expectedGeneration);
-  slips.set(slip.mandate.mandateId, slip);
+  if (getSlip(slip.mandate.mandateId)) throw httpError(409, "An issued permission cannot be replaced.");
+  current().slips.push(slip);
   return slip;
 }
 
 export function getSlip(mandateId: string): Slip | undefined {
-  return slips.get(mandateId);
+  return current().slips.find(s => s.mandate.mandateId === mandateId);
 }
 
 export function listSlips(): Slip[] {
-  return [...slips.values()];
+  return [...current().slips];
 }
 
 export type NewReceipt = Omit<Receipt, "id" | "createdAt">;
@@ -65,17 +69,17 @@ export type NewReceipt = Omit<Receipt, "id" | "createdAt">;
 export function addReceipt(input: NewReceipt, expectedGeneration?: number): Receipt {
   assertWritable(expectedGeneration);
   const receipt: Receipt = {
-    id: `r_${String(nextId++).padStart(3, "0")}`,
+    id: `r_${String(current().nextId++).padStart(3, "0")}`,
     createdAt: new Date().toISOString(),
     ...input,
   };
-  receipts.push(receipt);
-  counter++;
+  current().receipts.push(receipt);
+  current().counter++;
   return receipt;
 }
 
 export function getReceipt(id: string): Receipt | undefined {
-  return receipts.find((r) => r.id === id);
+  return current().receipts.find((r) => r.id === id);
 }
 
 export function saveRequestContext(receiptId: string, context: OriginalRequestContext): void {
@@ -83,14 +87,14 @@ export function saveRequestContext(receiptId: string, context: OriginalRequestCo
   const receipt = getReceipt(receiptId);
   if (!receipt || receipt.kind !== "action" || receipt.agentId !== context.agentId ||
       receipt.action !== context.action || receipt.actionTime !== context.requestBlock.blockTimestamp ||
-      receipt.mandateId !== context.originalSlip.mandate.mandateId || requestContexts.has(receiptId)) {
+      receipt.mandateId !== context.originalSlip.mandate.mandateId || getRequestContext(receiptId)) {
     throw httpError(409, "The original request context cannot be replaced.");
   }
-  requestContexts.set(receiptId, structuredClone(context));
+  current().contexts.push([receiptId, structuredClone(context)]);
 }
 
 export function getRequestContext(receiptId: string): OriginalRequestContext | undefined {
-  const context = requestContexts.get(receiptId);
+  const context = current().contexts.find(([id]) => id === receiptId)?.[1];
   return context ? structuredClone(context) : undefined;
 }
 
@@ -99,7 +103,7 @@ export function updateAttemptEvidence(receiptId: string, evidence: AttemptEviden
   assertWritable(generation);
   const receipt = getReceipt(receiptId);
   const record = canonicalAttemptRecord(evidence.record);
-  const context = requestContexts.get(receiptId);
+  const context = getRequestContext(receiptId);
   if (!receipt || receipt.kind !== "action" || !context ||
     record.receiptId !== receipt.id || record.source !== receipt.source || record.decision !== receipt.decision ||
     record.agent !== attemptAgent(receipt.agentId) || record.action !== attemptAction(receipt.action) ||
@@ -124,20 +128,21 @@ export function updateAttemptEvidence(receiptId: string, evidence: AttemptEviden
 
 /** Newest first. */
 export function listReceipts(): Receipt[] {
-  return [...receipts].reverse();
+  return [...current().receipts].reverse();
 }
 
 export function getCounter(): number {
-  return counter;
+  return current().counter;
 }
 
 export function reset(): void {
   // Increment before clearing. Work already in flight may complete on Monad, but
   // it must never repopulate the next demo session's in-memory state.
-  resetGeneration++;
-  slips.clear();
-  receipts = [];
-  requestContexts.clear();
-  counter = 0;
-  nextId = 1;
+  const s = current();
+  s.generation++;
+  s.slips = [];
+  s.receipts = [];
+  s.contexts = [];
+  s.counter = 0;
+  s.nextId = 1;
 }

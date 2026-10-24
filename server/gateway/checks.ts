@@ -1,7 +1,7 @@
 // Deterministic checks; original finalized block context is authoritative.
 import type { Check, Slip } from "../../shared/contract";
 import { AGENT_ID, RESOURCE } from "../../shared/contract";
-import { actionLabel } from "../../shared/scenarios";
+import { actionLabel, ACTIONS } from "../../shared/workspace";
 import { lookup } from "../chain";
 import { digestOf, issuerAddress, recoverSigner } from "../chain/slip";
 import { stampMatchesRequest, type OriginalRequestContext } from "../chain/evidence";
@@ -53,7 +53,7 @@ export async function evaluate(
     { id: "agent", label: "The right AI", pass: agentId === m.agentId, detail: "This slip belongs to a different AI" },
     { id: "valid", label: "Still valid", pass: m.issuedAt <= actionTime && actionTime < m.expiresAt, detail: "This slip has expired or is not active yet" },
     { id: "stamped", label: "Stamped before request", pass: stampedPass, detail: stampedDetail },
-    { id: "scope", label: `${label} on the slip`, pass: m.allowedActions.includes(action), detail: `${label} is not on this slip` },
+    { id: "scope", label: `${label} on the slip`, pass: ACTIONS.some(a => a.id === action) && m.allowedActions.includes(action), detail: `${label} is not on this slip` },
   ];
   return checks.map((c) => (c.pass ? { ...c, detail: "" } : c));
 }

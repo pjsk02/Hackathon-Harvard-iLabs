@@ -1,12 +1,13 @@
 import { isHexString, keccak256, toUtf8Bytes } from "ethers";
 import type { AttemptRecord } from "./contract";
 import { AGENT_ID, CHAIN_ID } from "./contract";
+import { ACTIONS } from "./workspace";
 
 export const ATTEMPT_CHECK_IDS = ["signed", "agent", "valid", "stamped", "scope"] as const;
 export const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export const attemptAgent = (agent: string): AttemptRecord["agent"] => agent === AGENT_ID ? AGENT_ID : "other";
 export const attemptAction = (action: string): AttemptRecord["action"] =>
-  action === "read_regional_margins" || action === "read_employee_salaries" ? action : "other";
+  ACTIONS.some(a => a.id === action) ? action as AttemptRecord["action"] : "other";
 
 const object = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
@@ -28,7 +29,7 @@ export function canonicalAttemptRecord(value: unknown): AttemptRecord {
     !uint(value.requestBlock.blockNumber) || !uint(value.requestBlock.blockTimestamp) ||
     !isHexString(value.requestBlock.blockHash, 32) ||
     (value.agent !== AGENT_ID && value.agent !== "other") ||
-    typeof value.action !== "string" || !["read_regional_margins", "read_employee_salaries", "other"].includes(value.action) ||
+    typeof value.action !== "string" || ![...ACTIONS.map(a => a.id), "other"].includes(value.action) ||
     (value.source !== "agent" && value.source !== "forced") ||
     (value.decision !== "ALLOWED" && value.decision !== "BLOCKED") ||
     !Array.isArray(value.checks) || value.checks.length !== 5 ||

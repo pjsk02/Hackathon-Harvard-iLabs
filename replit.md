@@ -1,6 +1,6 @@
 # Envoi (hackathon demo)
 
-One Express process serving the API and a Vite React client. In-memory state, no database.
+One Express process serving the API and a Vite React client. The current persistent evaluation product uses managed PostgreSQL. Current behavior and scope supersede older demo-only restrictions: see [persistent workspace](docs/PERSISTENT_WORKSPACE.md).
 Spec: `ENVOI_BUILD_SPEC.md`. Project rules and file ownership: `.agents/skills/envoi-contract/SKILL.md`.
 - Demo handoff (stage screen, script, story — wins over older docs for screen and script): [docs/DEMO_HANDOFF.md](docs/DEMO_HANDOFF.md)
 - Asks for P1/P2 (live AI, uploads, real Monad): [docs/TEAM_ASKS_LIVE_AI_AND_MONAD.md](docs/TEAM_ASKS_LIVE_AI_AND_MONAD.md)
