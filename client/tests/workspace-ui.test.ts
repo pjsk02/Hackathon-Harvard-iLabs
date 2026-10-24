@@ -137,6 +137,8 @@ test("quick prompts preserve attachments, select an explicit mode and never send
   const before=h.calls.length;
   for(const text of ["Complete the request","Verify this request","Summarize this document"]){await clickText(h.page,text);assert.equal(await h.page.$eval("#task",el=>(el as HTMLTextAreaElement).value),text);assert.equal(await h.page.evaluate(()=>document.activeElement?.id),"task");assert.ok(await h.page.$(".attachment"));assert.equal(h.calls.length,before);assert.equal(await h.page.$eval('input[name=mode]:checked',el=>(el as HTMLInputElement).value),text.startsWith("Summarize")?"document":"enforced");}
   for(const viewport of [{width:1440,height:1000},{width:390,height:844}]){await h.page.setViewport(viewport);assert.ok(await h.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.ok(await h.page.$$eval(".quick-prompts button",items=>items.every(el=>el.getBoundingClientRect().height>=44)));}
+  await h.page.hover(".quick-prompts button:nth-child(2)");
+  assert.ok(await h.page.$eval(".quick-prompts button:nth-child(2)",el=>getComputedStyle(el).backgroundColor.match(/\d+/g)!.slice(0,3).every(value=>Number(value)>180)));
   await clickText(h.page,"Verify this request");h.options.holdChat=new Promise<void>(r=>release=r);
   await h.page.evaluate(()=>document.querySelector<HTMLButtonElement>('button[type=submit]')!.click());
   await h.page.waitForFunction(()=>document.querySelector<HTMLTextAreaElement>("#task")!.disabled);
