@@ -109,6 +109,7 @@ export default function App() {
     <div className="app">
       <header className="header">
         <div className="brand">
+          <img className="logo" src="/envoi-logo.png" alt="" />
           <span className="wordmark">Envoi</span>
           <span className="muted">{scenario.client.name} ↔ {scenario.firm.name}</span>
         </div>
