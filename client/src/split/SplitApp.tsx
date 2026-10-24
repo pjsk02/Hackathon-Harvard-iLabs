@@ -247,7 +247,11 @@ export default function SplitApp() {
     evidence: () => {
       setActiveStep(4);
       setPreview("closed");
-      document.getElementById("monad-evidence")?.focus({ preventScroll: true });
+      const evidence = document.getElementById("monad-evidence");
+      const chain = evidence?.querySelector<HTMLElement>(".chain");
+      if (chain) chain.scrollTop = 0;
+      evidence?.focus({ preventScroll: true });
+      if (window.matchMedia("(max-width: 767px)").matches) evidence?.scrollIntoView({ block: "start", behavior: "auto" });
     },
     force: () => beat(async (alive) => {
       setAllowedReceipt(null);

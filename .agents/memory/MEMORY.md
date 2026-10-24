@@ -3,3 +3,4 @@
 - [Git push target](envoi-git-remote.md) — use the canonical team repository and the currently authorized branch, not a teammate's imported push policy.
 - [Reset protection boundary](reset-boundaries.md) — stale-write guards and retry-cache isolation are separate; neither cancels an already broadcast chain record.
 - [Live verification approval](live-verification-approval.md) — approved testnet writes are counted across restarts; the original five-write allowance is spent.
+- [Explorer handoff](explorer-handoff.md) — preserve the presenter’s place in Envoi while opening the independent public transaction record separately.

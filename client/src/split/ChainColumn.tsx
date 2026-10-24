@@ -1,10 +1,12 @@
 // Permission and attempt evidence are counted and verified independently.
+import { useEffect, useRef } from "react";
 import type { Receipt, Slip } from "@shared/contract";
 import { consulting } from "@shared/scenarios";
 import { AGENT, CLIENT, COPY, FIRM, permissionName, shortLabel, time, weekday } from "../labels";
 import { recordedAnchor, receiptShowsLatePermission } from "./evidence";
 import AttemptEvidence from "../AttemptEvidence";
 import { evidenceCounts } from "../attempt-evidence";
+import EvidenceReview from "./EvidenceReview";
 import "./evidence.css";
 
 type Props = {
@@ -22,6 +24,8 @@ type Item =
   | { kind: "marker"; at: number; rank: number; receipt: Receipt };
 
 export default function ChainColumn({ slips, blocked, pulse, receipts = [], review = false, busy, onRecheck }: Props) {
+  const chain = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (review && chain.current) chain.current.scrollTop = 0; }, [review]);
   const attempts = [...new Map([...receipts, ...(blocked ? [blocked] : [])].map((r) => [r.id, r])).values()];
   const items: Item[] = [
     ...slips.map((slip): Item => ({
@@ -45,12 +49,18 @@ export default function ChainColumn({ slips, blocked, pulse, receipts = [], revi
           {review && <span>{recorded ? "Permission recorded on Monad" : "No confirmed permission record on Monad"}</span>}
           {recorded > 0 && recorded < slips.length && <span>Some permissions have no confirmed record.</span>}
       </p>
-      <div className="chain">
-        {items.length === 0 && <p className="empty">{COPY.empty.chain}</p>}
+      <div className="chain" ref={chain}>
+        {review && <EvidenceReview slips={slips} receipts={attempts} busy={busy} onRecheck={onRecheck} />}
+        {review && <h3 className="evidence-history-title">Record timeline · authorization and requests</h3>}
+        {items.length === 0 && <div className="chain-empty-guide">
+          <strong>{COPY.empty.chain}</strong>
+          <p>Grant permission, then run an example. Step 4 separates the permission&apos;s authorization record from the request&apos;s evidence. Only confirmed records link to Monad.</p>
+        </div>}
+        <div className="evidence-history" aria-label="Permission and request timeline">
         {items.map((item) => item.kind === "marker" ? (
           <div key={`attempt-${item.receipt.id}`} className="marker attempt-marker">
             <strong>
-              {item.receipt.kind === "dispute" ? "Permission review" : item.receipt.source === "forced" ? "Manual request" : "Atlas request"}
+              {item.receipt.kind === "dispute" ? "Permission review" : item.receipt.source === "forced" ? "Manual request" : `${AGENT} request`}
               {" · "}{shortLabel(item.receipt.action)} · {item.receipt.decision}
             </strong>
             <span>Application record · {time(item.receipt.actionTime)}</span>
@@ -62,6 +72,7 @@ export default function ChainColumn({ slips, blocked, pulse, receipts = [], revi
             superseded={amended && item.slip.label === "Original"}
             lateReceipt={attempts.find((receipt) => receipt.mandateId === item.slip.mandate.mandateId && receiptShowsLatePermission(receipt))} />
         ))}
+        </div>
       </div>
     </section>
   );
@@ -81,7 +92,7 @@ function Block({ slip, pulsing, superseded, lateReceipt }: {
       <div className="block-top">
         <span className="block-name">{permissionName(slip)}</span>
         {anchor ? (
-          <a href={anchor.explorerUrl} target="_blank" rel="noreferrer"
+          <a href={anchor.explorerUrl} target="_blank" rel="noopener noreferrer"
             aria-label={`View ${permissionName(slip)} on Monad, block ${anchor.blockNumber}`}>
             block {anchor.blockNumber.toLocaleString()} ↗
           </a>
